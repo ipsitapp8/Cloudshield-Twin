@@ -31,7 +31,7 @@ def _addr_port(addr: str) -> tuple[str, int]:
 
 
 def build_twin(agent: AgentSnapshot, aws: AWSSnapshot, config: TwinConfig) -> nx.DiGraph:
-    G = nx.DiGraph()
+    G: nx.DiGraph = nx.DiGraph()
     G.graph["firewall"] = agent.firewall.model_dump() if agent.firewall else None
     G.graph["security_groups"] = {
         sg_id: sg.model_dump() for sg_id, sg in aws.security_groups.items()

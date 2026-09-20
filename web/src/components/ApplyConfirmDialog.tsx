@@ -111,7 +111,7 @@ export function ApplyConfirmDialog({
               confirmation is guaranteed to actually be shown -- see onApplied below. */}
           <button
             type="button"
-            onClick={() => onApplied(apply.state.status === 'success' ? apply.state.data.patch_id : patch.id)}
+            onClick={() => onApplied()}
             className="rounded border border-slate-600 px-3 py-1 text-xs text-slate-300 hover:bg-slate-800"
           >
             Close

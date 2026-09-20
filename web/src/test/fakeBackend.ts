@@ -133,6 +133,27 @@ export class FakeBackend {
     this.addEvent('PATCH_ROLLED_BACK', { patch_id: patchId })
     return { status: 'rolled_back', patch_id: patchId }
   }
+
+  simulateFailure(node: string) {
+    // Mirrors engine/failure.py's real output for the redis fixture (SPEC §5.B):
+    // redis is a soft dep of /products and a hard dep of /checkout.
+    if (node === 'redis') {
+      return {
+        node,
+        affected_services: { redis: 'down', api: 'degraded' },
+        affected_endpoints: { '/checkout': 'FAILED', '/products': 'DEGRADED' },
+        critical_paths: { '/checkout': ['redis', 'api'] },
+        recovery_order: ['redis', 'api'],
+      }
+    }
+    return {
+      node,
+      affected_services: { [node]: 'down' },
+      affected_endpoints: {},
+      critical_paths: {},
+      recovery_order: [node],
+    }
+  }
 }
 
 export function installFakeBackendFetch(backend: FakeBackend) {
@@ -167,6 +188,10 @@ export function installFakeBackendFetch(backend: FakeBackend) {
     }
     if (url.pathname === '/spof' && method === 'GET') {
       return json([])
+    }
+    if (url.pathname === '/simulate/failure' && method === 'POST') {
+      const { node } = JSON.parse((init?.body as string) ?? '{}')
+      return json(backend.simulateFailure(node))
     }
 
     throw new Error(`fakeBackend: unhandled request ${method} ${url.pathname}`)

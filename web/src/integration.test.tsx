@@ -81,6 +81,31 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     await waitFor(() => expect(screen.getByText(/ambiguous result/i)).toBeInTheDocument())
   })
 
+  it('4. FAILURE: simulating a redis failure shows api degraded, /checkout FAILED, /products DEGRADED', async () => {
+    const backend = new FakeBackend()
+    installFakeBackendFetch(backend)
+    installMockWebSocket()
+
+    render(<App />)
+    act(() => MockWebSocket.instances[0].open())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Failure' }))
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /node to fail/i }), 'redis')
+    await userEvent.click(screen.getByRole('button', { name: /simulate failure/i }))
+
+    const main = screen.getByRole('main')
+    await waitFor(() => expect(within(main).getByText('Affected services')).toBeInTheDocument())
+    const servicesSection = within(main).getByText('Affected services').closest('div')!
+    const apiRow = within(servicesSection).getByText('api').closest('li')!
+    expect(within(apiRow).getByText('degraded')).toBeInTheDocument()
+
+    const endpointsSection = within(main).getByText('Affected endpoints').closest('div')!
+    const checkoutRow = within(endpointsSection).getByText('/checkout').closest('li')!
+    expect(within(checkoutRow).getByText('FAILED')).toBeInTheDocument()
+    const productsRow = within(endpointsSection).getByText('/products').closest('li')!
+    expect(within(productsRow).getByText('DEGRADED')).toBeInTheDocument()
+  })
+
   it('surfaces a clear backend-unavailable state instead of silently showing nothing', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
     installMockWebSocket()

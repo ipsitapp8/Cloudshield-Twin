@@ -22,7 +22,7 @@ def build_attack_graph(G: nx.DiGraph) -> nx.DiGraph:
     Only "flow" and "grants" edges from the twin represent traversable network/credential
     paths for an attacker; "runs_on" is structural (not a hop) and is intentionally excluded.
     """
-    AG = nx.DiGraph()
+    AG: nx.DiGraph = nx.DiGraph()
     AG.add_nodes_from(G.nodes(data=True))
     for u, v, data in G.edges(data=True):
         if data.get("kind") in ("flow", "grants"):

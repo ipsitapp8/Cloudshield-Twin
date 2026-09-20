@@ -51,6 +51,9 @@ describe('ApplyConfirmDialog', () => {
 
     await waitFor(() => expect(applySpy).toHaveBeenCalledWith(patch.id, true))
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/backend confirmed/i))
+    expect(onApplied).not.toHaveBeenCalled()
+
+    await userEvent.click(screen.getByRole('button', { name: /close/i }))
     expect(onApplied).toHaveBeenCalled()
   })
 
