@@ -37,6 +37,11 @@ export interface TwinEdge {
 export interface TwinGraph {
   nodes: TwinNode[]
   edges: TwinEdge[]
+  // Present once a real agent has ever connected this session (see agent/agent.py +
+  // backend/main.py's live-mode tracking). Absent/undefined on older responses.
+  mode?: 'demo' | 'live'
+  connected?: boolean
+  last_seen_seconds_ago?: number | null
 }
 
 export type ExposureStatus = 'exposed' | 'latent' | 'internal' | 'closed'

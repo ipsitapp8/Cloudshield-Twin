@@ -28,17 +28,21 @@ The whole application runs **fully offline** in replay/fake mode, driven entirel
 ```
 engine/    pure algorithms: models, twin, exposure, failure, attack, risk, remediate, drift
 backend/   FastAPI app: main, store (SQLite), aws_layer (Fake/RealAws), apply, llm, replay
+agent/     real-machine telemetry agent (psutil-based) -- LIVE mode's data source
 web/       Vite + React + TypeScript + Tailwind + @xyflow/react + dagre dashboard
-fixtures/  healthy / latent / exposed / fixed scenario snapshots + twin.yaml
-tests/     pytest suite for engine/ and backend/ (unit, API, integration, security)
+fixtures/  healthy / latent / exposed / fixed scenario snapshots + twin.yaml (DEMO mode only)
+tests/     pytest suite for engine/, agent/, and backend/ (unit, API, integration, security)
 ```
 
-`Spec.md` §2 also describes an `agent/agent.py` (the read-only monitoring script that
-would run on the real EC2 demo VM) and a `demo/` stack (the actual nginx/node-api/
-postgres/redis VM setup). **Neither exists in this repository.** Every phase of this
-project so far has built and hardened the engine/backend/frontend against `fixtures/`
-in fake/replay mode; provisioning a real demo VM and its agent is out of scope for what
-has been implemented and would be new, substantial work, not a bug fix.
+CloudShield Twin has two independent data sources feeding the same unmodified engine:
+**LIVE** (`agent/agent.py`, real telemetry from a real machine — see "Real agent" below)
+and **DEMO/replay** (`fixtures/`, offline and deterministic, for tests/demo/development
+without a machine to connect). The backend never mixes the two: once a real agent has
+sent one snapshot, replay is disabled for that session (see `LiveModeConflict` in
+`backend/main.py`). `Spec.md` §2 also describes a `demo/` stack (the actual provisioned
+nginx/node-api/postgres/redis EC2 box the fixtures model) — that provisioning work
+itself (spinning up a real EC2 box) remains out of scope; the agent that would monitor
+one now exists and works against any real machine, EC2 or otherwise.
 
 ## Requirements
 
@@ -88,6 +92,34 @@ The app opens on a landing page explaining the problem and the loop — click
 "Launch the Twin" to reach the live dashboard (the tab title in the dashboard header
 takes you back to the landing page at any time).
 
+### Real agent (LIVE mode — connect a real machine)
+
+```bash
+python -m agent.agent --server http://localhost:8000 --token dev-token
+```
+
+This replaces the fixture/replay twin with a live one built from telemetry actually
+collected on the machine the agent runs on (via `psutil`): host identity, CPU, memory,
+disk, network interfaces, listening ports, connections, and top processes. CPU/memory
+refresh every `--fast-interval` seconds (default 3s); listeners/connections/processes/
+disks/interfaces refresh every `--slow-interval` seconds (default 10s). The agent only
+ever reads system state and makes one outbound `POST /ingest` per tick — no shell
+execution, no file writes, no mutation of anything.
+
+Once a real agent has sent even one snapshot, the backend switches to **LIVE mode for
+the rest of that process's lifetime**: `/replay/step` and `/replay/reset` are rejected
+(409) so demo fixture data can never silently overwrite real telemetry, and `GET /twin`
+reports `mode: "live"` plus `connected`/`last_seen_seconds_ago` (surfaced in the
+dashboard header as "LIVE ●" / "LIVE (stale)"). Nodes that aren't actually running on
+the connected machine (e.g. nginx/redis/postgres from the demo fixtures) simply don't
+appear — nothing is invented.
+
+This has been verified against a real machine (this dev environment): real hostname,
+real running processes, and a manually-opened test TCP listener all appeared in the
+live twin within one slow-refresh cycle, with no process killed and no system state
+changed. `AWS_MODE` is independent of this — LIVE agent telemetry still pairs with
+`fake` (default) or `real` AWS data for the security-exposure layer.
+
 ### Real AWS mode (not exercised by the test suite)
 
 ```bash
@@ -135,9 +167,9 @@ engine, backend, or apply layer.
 ## Testing
 
 ```bash
-# Engine + backend (unit, API, integration, adversarial/security)
+# Engine + backend + agent (unit, API, integration, adversarial/security, live-mode)
 pytest -q
-mypy engine backend
+mypy engine backend agent
 
 # Frontend
 cd web
@@ -147,15 +179,27 @@ npm run build         # production build
 npm run lint          # oxlint
 ```
 
-At the time of writing: 110 Python tests (engine, backend unit/API, integration, and a
-dedicated adversarial security suite) and 40 frontend tests all pass; `mypy` and
-`tsc -b` report no errors; the production build succeeds.
+At the time of writing: 130 Python tests (engine, agent unit tests, backend unit/API,
+live-mode, integration, and a dedicated adversarial security suite) and 50 frontend
+tests all pass; `mypy` and `tsc -b` report no errors; the production build succeeds.
+Agent collectors are unit-tested with `psutil` mocked (deterministic, no dependency on
+the CI machine's actual state) and separately verified live against a real machine —
+see "Real agent (LIVE mode)" above.
 
 ## Known limitations
 
-- `agent/agent.py` and the `demo/` VM stack described in `Spec.md` §2 are not
-  implemented — see "Repository layout" above.
+- The `demo/` VM stack described in `Spec.md` §2 (the actual provisioned nginx/node/
+  postgres/redis EC2 box) is not implemented — only the agent that would monitor such
+  a box exists. `agent/agent.py` now exists and is real, but has only been verified
+  against local Linux/Windows dev machines, not a real EC2 instance.
+- Docker/container telemetry, a dedicated performance-bottleneck ("why is my VM
+  slow?") engine, network-anomaly analysis, telemetry history/trend charts, and a
+  snapshot-upload flow are not implemented yet — raw telemetry needed for these is
+  already being captured and stored, but no analysis/UI for them exists.
 - `AWS_MODE=real` and Bedrock have not been exercised against real AWS in any phase;
   only fake/replay mode has automated test coverage.
+- The agent has been live-verified on Windows (this dev environment) via `psutil`,
+  which is genuinely cross-platform, but has not yet been run against a real Linux VM
+  or macOS machine.
 - There is no dependency lockfile for the Python side (`pyproject.toml` declares
   version ranges, not exact pins).

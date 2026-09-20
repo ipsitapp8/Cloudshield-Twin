@@ -9,6 +9,9 @@ dependencies = [
     "networkx>=3",
     "PyYAML>=6",
     "uvicorn>=0.30",
+    # agent/agent.py: standard cross-platform (Linux/macOS/Windows) CPU/memory/disk/
+    # process/network telemetry -- avoids hand-rolling /proc parsing and WMI calls.
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]
@@ -20,6 +23,7 @@ dev = [
     "mypy>=1.10",
     "types-networkx",
     "types-PyYAML",
+    "types-psutil",
 ]
 
 [tool.pytest.ini_options]

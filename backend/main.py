@@ -8,6 +8,7 @@ import os
 import socket
 import time
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
@@ -32,6 +33,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 FIXTURES_DIR = REPO_ROOT / "fixtures"
 PROBE_TIMEOUT_SECONDS = 2.0
 DEFAULT_SG_ID = "sg-0abc123"
+# A real agent (agent/agent.py) sends its slow-cadence fields (listeners/conns/etc.)
+# at least this often (default 10s) -- twice that with no ingest means the agent
+# process has actually stopped, not just between ticks.
+LIVE_STALE_SECONDS = 30.0
+
+
+class LiveModeConflict(Exception):
+    """Raised when a demo/replay action is attempted while a real agent is connected
+    (§21: demo data must never silently overwrite/mix with live telemetry)."""
 
 
 def probe_tcp(host: str, port: int, timeout: float = PROBE_TIMEOUT_SECONDS) -> dict:
@@ -81,11 +91,15 @@ class Backend:
         )
         self._latest_agent: AgentSnapshot | None = None
         self._drift_prev_fp: dict | None = None
+        self._mode: Literal["demo", "live"] = "demo"
+        self._last_ingest_ts: float | None = None
 
     # -- ingestion ----------------------------------------------------
 
     def ingest(self, snapshot: AgentSnapshot) -> None:
         self._latest_agent = snapshot
+        self._mode = "live"  # sticky for the process lifetime once a real agent connects
+        self._last_ingest_ts = time.time()
         self.store.add_snapshot("agent", snapshot.model_dump(mode="json"), ts=snapshot.ts)
         self._recompute_drift()
 
@@ -111,7 +125,15 @@ class Backend:
         G = self.build_twin()
         nodes = [{"id": n, **d} for n, d in G.nodes(data=True)]
         edges = [{"src": u, "dst": v, **d} for u, v, d in G.edges(data=True)]
-        return {"nodes": nodes, "edges": edges}
+        last_seen_ago = time.time() - self._last_ingest_ts if self._last_ingest_ts is not None else None
+        connected = self._mode == "live" and last_seen_ago is not None and last_seen_ago <= LIVE_STALE_SECONDS
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "mode": self._mode,
+            "connected": connected,
+            "last_seen_seconds_ago": last_seen_ago,
+        }
 
     # -- findings ---------------------------------------------------------
 
@@ -189,6 +211,8 @@ class Backend:
     # -- replay ---------------------------------------------------------
 
     def replay_step(self) -> dict:
+        if self._mode == "live":
+            raise LiveModeConflict("a real agent is connected; demo replay is disabled for this session")
         scenario = self.replay.step()
         agent, _aws = self.replay.load()
         self._latest_agent = agent
@@ -199,6 +223,8 @@ class Backend:
         return {"scenario": scenario, "twin": self.get_twin_json()}
 
     def replay_reset(self) -> dict:
+        if self._mode == "live":
+            raise LiveModeConflict("a real agent is connected; demo replay is disabled for this session")
         scenario = self.replay.reset()
         self._latest_agent = None
         self._drift_prev_fp = None
@@ -341,13 +367,19 @@ def create_app(**backend_kwargs) -> FastAPI:
 
     @app.post("/replay/step")
     async def replay_step():
-        result = backend.replay_step()
+        try:
+            result = backend.replay_step()
+        except LiveModeConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
         await broadcast({"type": "REPLAY_STEP", "scenario": result["scenario"]})
         return result
 
     @app.post("/replay/reset")
     async def replay_reset():
-        result = backend.replay_reset()
+        try:
+            result = backend.replay_reset()
+        except LiveModeConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
         await broadcast({"type": "REPLAY_RESET", "scenario": result["scenario"]})
         return result
 

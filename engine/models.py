@@ -17,6 +17,14 @@ class Host(BaseModel):
     instance_id: str
     private_ip: str
     public_ip: str | None = None
+    # Optional real-machine identity (populated by agent/agent.py in live mode;
+    # always None/absent for fixtures -- unread by every existing engine algorithm).
+    hostname: str | None = None
+    os: str | None = None
+    kernel: str | None = None
+    arch: str | None = None
+    uptime_seconds: float | None = None
+    cloud_id: str | None = None
 
 
 class Listener(BaseModel):
@@ -59,6 +67,65 @@ class Checks(BaseModel):
     redis_noauth: bool = False
 
 
+# --- Real telemetry (§3 of the live-monitoring extension). All fields are optional/
+# empty-default: the agent fills in whatever the OS actually exposes and leaves the
+# rest unset rather than inventing values. Nothing in engine/{twin,exposure,failure,
+# attack,risk,remediate,drift}.py reads these -- they exist for the performance/
+# network-analysis layer, not yet built (see the live-monitoring plan).
+
+
+class CpuInfo(BaseModel):
+    percent: float | None = None
+    per_core: list[float] = Field(default_factory=list)
+    load_avg: list[float] | None = None  # None on platforms without getloadavg (Windows)
+    freq_mhz: float | None = None
+
+
+class MemoryInfo(BaseModel):
+    total: int | None = None
+    used: int | None = None
+    available: int | None = None
+    percent: float | None = None
+    swap_total: int | None = None
+    swap_used: int | None = None
+    swap_percent: float | None = None
+
+
+class DiskInfo(BaseModel):
+    device: str
+    mountpoint: str
+    total: int | None = None
+    used: int | None = None
+    free: int | None = None
+    percent: float | None = None
+
+
+class ProcessInfo(BaseModel):
+    pid: int | None = None
+    ppid: int | None = None
+    name: str = "unknown"
+    exe: str | None = None
+    user: str = "unknown"
+    cpu_percent: float | None = None
+    memory_percent: float | None = None
+    create_time: float | None = None
+    cmdline: list[str] | None = None
+
+
+class NetworkInterfaceInfo(BaseModel):
+    name: str
+    addresses: list[str] = Field(default_factory=list)
+    is_up: bool | None = None
+    bytes_sent: int | None = None
+    bytes_recv: int | None = None
+    packets_sent: int | None = None
+    packets_recv: int | None = None
+    errin: int | None = None
+    errout: int | None = None
+    dropin: int | None = None
+    dropout: int | None = None
+
+
 class AgentSnapshot(BaseModel):
     ts: float
     host: Host
@@ -67,6 +134,15 @@ class AgentSnapshot(BaseModel):
     containers: list[Container] = Field(default_factory=list)
     firewall: Firewall | None = None
     checks: Checks = Field(default_factory=Checks)
+    # Real telemetry -- always absent/default for fixtures, always populated (to the
+    # extent the OS allows) by agent/agent.py. `source` is how the backend tells a
+    # real agent snapshot apart from a replayed fixture (§21 mode tracking).
+    cpu: CpuInfo | None = None
+    memory: MemoryInfo | None = None
+    disks: list[DiskInfo] = Field(default_factory=list)
+    network_interfaces: list[NetworkInterfaceInfo] = Field(default_factory=list)
+    processes: list[ProcessInfo] = Field(default_factory=list)
+    source: Literal["live", "demo"] = "demo"
 
 
 # ---------------------------------------------------------------------------

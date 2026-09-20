@@ -12,6 +12,7 @@ import { EventsPanel } from './components/EventsPanel'
 import { ExplainPanel } from './components/ExplainPanel'
 import { LandingPage } from './components/LandingPage'
 import { RiskBar } from './components/RiskBar'
+import { AgentStatusBadge } from './components/AgentStatusBadge'
 import { ToastStack } from './components/ToastStack'
 import { IncidentStory } from './components/IncidentStory'
 
@@ -45,6 +46,7 @@ function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory:
           <p className="text-xs text-slate-500">Observe → Understand → Simulate → Remediate → Prove</p>
         </div>
         <div className="flex items-center gap-4">
+          <AgentStatusBadge />
           <RiskBar />
           <button
             type="button"
