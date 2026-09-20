@@ -23,6 +23,7 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     Object.defineProperty(window, 'location', { value: { ...window.location, reload: reloadSpy }, writable: true })
 
     render(<App />)
+    await userEvent.click(screen.getAllByRole('button', { name: /launch the twin/i })[0])
     act(() => MockWebSocket.instances[0].open())
 
     // -- 1. HEALTHY: redis renders, not falsely exposed ------------------------------
@@ -87,6 +88,7 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     installMockWebSocket()
 
     render(<App />)
+    await userEvent.click(screen.getAllByRole('button', { name: /launch the twin/i })[0])
     act(() => MockWebSocket.instances[0].open())
 
     await userEvent.click(screen.getByRole('button', { name: 'Failure' }))
@@ -94,15 +96,17 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     await userEvent.click(screen.getByRole('button', { name: /simulate failure/i }))
 
     const main = screen.getByRole('main')
-    await waitFor(() => expect(within(main).getByText('Affected services')).toBeInTheDocument())
-    const servicesSection = within(main).getByText('Affected services').closest('div')!
-    const apiRow = within(servicesSection).getByText('api').closest('li')!
+    await waitFor(() => expect(within(main).getByTestId('failure-stat-services')).toBeInTheDocument())
+    expect(within(main).getByTestId('failure-stat-services')).toHaveTextContent('2')
+    expect(within(main).getByTestId('failure-stat-endpoints')).toHaveTextContent('2')
+    expect(within(main).getByTestId('failure-stat-paths')).toHaveTextContent('1')
+
+    const apiRow = within(main).getByText('api', { selector: 'span.font-mono' }).closest('li')!
     expect(within(apiRow).getByText('degraded')).toBeInTheDocument()
 
-    const endpointsSection = within(main).getByText('Affected endpoints').closest('div')!
-    const checkoutRow = within(endpointsSection).getByText('/checkout').closest('li')!
+    const checkoutRow = within(main).getByText('/checkout').closest('li')!
     expect(within(checkoutRow).getByText('FAILED')).toBeInTheDocument()
-    const productsRow = within(endpointsSection).getByText('/products').closest('li')!
+    const productsRow = within(main).getByText('/products').closest('li')!
     expect(within(productsRow).getByText('DEGRADED')).toBeInTheDocument()
   })
 
@@ -111,6 +115,7 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     installMockWebSocket()
 
     render(<App />)
+    await userEvent.click(screen.getAllByRole('button', { name: /launch the twin/i })[0])
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/backend unavailable/i))
   })
 })

@@ -57,6 +57,23 @@ export function FailurePanel() {
       )}
       {failure.state.status === 'success' && (
         <div className="space-y-3 rounded border border-slate-800 p-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              { key: 'services', label: 'Affected services', value: Object.keys(failure.state.data.affected_services).length },
+              { key: 'endpoints', label: 'Affected endpoints', value: Object.keys(failure.state.data.affected_endpoints).length },
+              { key: 'paths', label: 'Critical paths', value: Object.keys(failure.state.data.critical_paths).length },
+              { key: 'recovery', label: 'Recovery first', value: failure.state.data.recovery_order[0] ?? '—' },
+            ].map((stat) => (
+              <div
+                key={stat.key}
+                data-testid={`failure-stat-${stat.key}`}
+                className="rounded border border-slate-800 bg-slate-900/60 p-2 text-center"
+              >
+                <p className="font-mono text-lg font-bold text-slate-100">{stat.value}</p>
+                <p className="text-[10px] uppercase tracking-wide text-slate-500">{stat.label}</p>
+              </div>
+            ))}
+          </div>
           <div>
             <p className="text-xs font-semibold text-slate-400">Affected services</p>
             <ul className="mt-1 flex flex-wrap gap-2">

@@ -84,6 +84,10 @@ npm run dev
 By default the frontend calls the backend at `http://localhost:8000` (see
 `web/.env.example` — copy to `.env.local` to point at a different backend URL).
 
+The app opens on a landing page explaining the problem and the loop — click
+"Launch the Twin" to reach the live dashboard (the tab title in the dashboard header
+takes you back to the landing page at any time).
+
 ### Real AWS mode (not exercised by the test suite)
 
 ```bash

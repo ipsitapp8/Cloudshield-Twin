@@ -10,6 +10,7 @@ import { SpofPanel } from './components/SpofPanel'
 import { ProbePanel } from './components/ProbePanel'
 import { EventsPanel } from './components/EventsPanel'
 import { ExplainPanel } from './components/ExplainPanel'
+import { LandingPage } from './components/LandingPage'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', render: () => <TwinDashboard /> },
@@ -22,7 +23,7 @@ const TABS = [
   { id: 'explain', label: 'Explain', render: () => <ExplainPanel /> },
 ] as const
 
-function Shell() {
+function Shell({ onHome }: { onHome: () => void }) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('dashboard')
   const active = TABS.find((t) => t.id === tab) ?? TABS[0]
 
@@ -30,7 +31,13 @@ function Shell() {
     <div className="mx-auto min-h-screen max-w-6xl px-4 py-4">
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div>
-          <h1 className="text-lg font-bold text-slate-100">CloudShield Twin</h1>
+          <button
+            type="button"
+            onClick={onHome}
+            className="text-left text-lg font-bold text-slate-100 hover:text-purple-400"
+          >
+            CloudShield Twin
+          </button>
           <p className="text-xs text-slate-500">Observe → Understand → Simulate → Remediate → Prove</p>
         </div>
         <div className="flex items-center gap-3">
@@ -63,9 +70,15 @@ function Shell() {
 }
 
 export default function App() {
+  const [entered, setEntered] = useState(false)
+
+  if (!entered) {
+    return <LandingPage onEnter={() => setEntered(true)} />
+  }
+
   return (
     <LiveProvider>
-      <Shell />
+      <Shell onHome={() => setEntered(false)} />
     </LiveProvider>
   )
 }

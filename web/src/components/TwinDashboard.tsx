@@ -4,6 +4,7 @@ import { useLive } from '../hooks/LiveContext'
 import { AsyncBoundary } from './AsyncBoundary'
 import { Badge } from './Badge'
 import { FlowGraph } from './FlowGraph'
+import { GettingStartedBanner } from './GettingStartedBanner'
 
 /** Requirement 1: Dashboard showing the current twin/topology, from GET /twin.
  * Auto-refreshes whenever the WebSocket reports a change (ingest, replay step, patch applied). */
@@ -13,6 +14,7 @@ export function TwinDashboard() {
 
   return (
     <section className="space-y-3">
+      <GettingStartedBanner />
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">
           Twin Topology
