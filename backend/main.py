@@ -414,10 +414,15 @@ def create_app(**backend_kwargs) -> FastAPI:
     # Local-dev CORS: the web/ frontend (Vite, a different origin/port) calls this API
     # directly from the browser. No new endpoints or logic -- purely enables cross-origin
     # requests for this local demo tool. Configurable for non-default frontend origins.
+    # FRONTEND_ORIGIN_REGEX additionally matches a *pattern* of origins -- e.g. a host
+    # like Vercel that gives every deployment its own unique subdomain, which a static
+    # exact-match list can't keep up with across redeploys.
     frontend_origins = os.environ.get("FRONTEND_ORIGIN", "*")
+    frontend_origin_regex = os.environ.get("FRONTEND_ORIGIN_REGEX")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[o.strip() for o in frontend_origins.split(",")],
+        allow_origin_regex=frontend_origin_regex,
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
