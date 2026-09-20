@@ -11,11 +11,28 @@ See `Spec.md` for the full specification; this README covers setup and day-to-da
 ## Architecture
 
 ```
-VM (EC2): demo stack (nginx -> node-api -> postgres, redis) + read-only agent
-   --HTTPS-->  Control plane (this repo): FastAPI backend + React dashboard
-                 |-- boto3 -> EC2/SG/IAM (read); SG revoke/authorize only via approved apply
-                 `-- external probe: TCP connect to the VM's public IP (independent proof)
+Linux VM (or any machine)
+   |
+   v
+CloudShield Agent (agent/agent.py, psutil, read-only, one-way HTTPS push)
+   |  POST /ingest  (Authorization: Bearer <per-agent token from /agents/register>)
+   v
+CloudShield Backend (FastAPI)  --boto3-->  EC2/SG/IAM (read; SG revoke/authorize only via approved apply)
+   |                                       `-- external probe: TCP connect to the VM's public IP
+   v
+SQLite store (snapshots, events, registered agents)
+   |
+   v
+System Twin (engine/twin.py, unmodified pure algorithms)
+   |
+   v
+Exposure / Attack / Failure / Risk  -->  Remediation preview  -->  Human approval  -->  Apply  -->  Verify
 ```
+
+The app starts with **no VM connected** — no fixture data, no invented
+nginx/redis/postgres. The dashboard only renders once a real agent has sent
+telemetry, or you explicitly choose demo/replay mode. See "Real agent (LIVE
+mode)" below for the full connect flow.
 
 `engine/` is pure (no network/file/AWS I/O — dicts and graphs in, dicts out). Everything
 else (`backend/`, `web/`) wires that pure logic to HTTP, storage, and AWS.
@@ -88,37 +105,73 @@ npm run dev
 By default the frontend calls the backend at `http://localhost:8000` (see
 `web/.env.example` — copy to `.env.local` to point at a different backend URL).
 
-The app opens on a landing page explaining the problem and the loop — click
-"Launch the Twin" to reach the live dashboard (the tab title in the dashboard header
-takes you back to the landing page at any time).
+The app opens on a landing page — "Launch the Twin" leads to a **Connect a VM**
+screen, not a populated dashboard (the tab title in the dashboard header takes you
+back to the landing page at any time).
 
 ### Real agent (LIVE mode — connect a real machine)
 
-```bash
-python -m agent.agent --server http://localhost:8000 --token dev-token
-```
+1. Click **Connect a VM**. The frontend calls `POST /agents/register`, which
+   generates a fresh `agent_id` and bearer token (stored in a small `agents`
+   table in `backend/store.py`; the token itself is never returned by any other
+   endpoint — `GET /agents`/`GET /agents/{id}` show hostname/last-seen/connected
+   only).
+2. Copy the command it displays and run it on the machine you want to observe:
 
-This replaces the fixture/replay twin with a live one built from telemetry actually
-collected on the machine the agent runs on (via `psutil`): host identity, CPU, memory,
-disk, network interfaces, listening ports, connections, and top processes. CPU/memory
-refresh every `--fast-interval` seconds (default 3s); listeners/connections/processes/
-disks/interfaces refresh every `--slow-interval` seconds (default 10s). The agent only
-ever reads system state and makes one outbound `POST /ingest` per tick — no shell
-execution, no file writes, no mutation of anything.
+   ```bash
+   python -m agent.agent --server http://localhost:8000 --token <the generated token>
+   ```
+
+   (The legacy shared `INGEST_TOKEN`/`dev-token` bearer still works too, mainly
+   for local dev/testing convenience — the registration flow above is the
+   primary, real path.)
+3. The frontend polls `GET /connection` every ~2s. The moment the agent's first
+   snapshot lands, the UI transitions from "Waiting for agent…" straight to the
+   dashboard, built from telemetry actually collected on that machine (via
+   `psutil`): host identity, CPU, memory, disk, network interfaces, listening
+   ports, connections, and top processes. CPU/memory refresh every
+   `--fast-interval` seconds (default 3s); listeners/connections/processes/
+   disks/interfaces refresh every `--slow-interval` seconds (default 10s). The
+   agent only ever reads system state and makes one outbound `POST /ingest` per
+   tick — no shell execution, no file writes, no mutation of anything, and the
+   backend has no channel to command the agent back.
 
 Once a real agent has sent even one snapshot, the backend switches to **LIVE mode for
 the rest of that process's lifetime**: `/replay/step` and `/replay/reset` are rejected
 (409) so demo fixture data can never silently overwrite real telemetry, and `GET /twin`
-reports `mode: "live"` plus `connected`/`last_seen_seconds_ago` (surfaced in the
-dashboard header as "LIVE ●" / "LIVE (stale)"). Nodes that aren't actually running on
-the connected machine (e.g. nginx/redis/postgres from the demo fixtures) simply don't
-appear — nothing is invented.
+reports `mode: "live"` plus `connected`/`last_seen_seconds_ago`/`agent_id`/`hostname`
+(surfaced in the dashboard header as "LIVE ●" / "LIVE (stale)"). Before any agent
+connects, `GET /twin` reports `mode: "unconnected"` with an empty graph — never
+fixture data. Nodes that aren't actually running on the connected machine (e.g.
+nginx/redis/postgres from the demo fixtures) simply don't appear — nothing is invented.
+
+Other real-VM endpoints:
+- `GET /agents` / `GET /agents/{agent_id}` / `GET /agents/{agent_id}/status` — the
+  registry of every agent ever registered and its live connection state.
+- `GET /processes` — the connected agent's raw process list and listening ports
+  (the dashboard's Infrastructure → Processes tab).
+- `POST /scan` ("Scan Now" in the header) — recomputes the twin, exposure findings,
+  and SPOF analysis from the most recently *received* telemetry, and records a
+  timestamped `SCAN_COMPLETE` event. It does **not** ask the agent to collect
+  anything on demand — telemetry is strictly one-way (agent → backend), so this
+  means "recompute from what we already have," not "go fetch fresh data right
+  now." In practice the agent already pushes a full snapshot every
+  `--fast-interval` seconds, so this is rarely stale.
 
 This has been verified against a real machine (this dev environment): real hostname,
 real running processes, and a manually-opened test TCP listener all appeared in the
 live twin within one slow-refresh cycle, with no process killed and no system state
 changed. `AWS_MODE` is independent of this — LIVE agent telemetry still pairs with
 `fake` (default) or `real` AWS data for the security-exposure layer.
+
+### Demo / Replay mode (explicit opt-in only)
+
+`fixtures/` data is never loaded automatically. It's reachable two ways, both
+explicit: the "Use Demo / Replay Mode instead" link on the Connect-a-VM screen
+(calls `POST /replay/reset`), or the landing page's "Watch 90-sec Demo" button
+(plays a guided incident story whose first beat itself calls `replayReset()`).
+Either way, the header's status badge always shows one unambiguous state —
+**NO VM CONNECTED** / **DEMO / REPLAY** / **LIVE ●** — never mixed, never silent.
 
 ### Performance — "Why is my VM slow?"
 
@@ -201,13 +254,16 @@ npm run build         # production build
 npm run lint          # oxlint
 ```
 
-At the time of writing: 148 Python tests (engine incl. performance diagnosis, agent
-unit tests, backend unit/API/live-mode/performance, integration, and a dedicated
-adversarial security suite) and 52 frontend tests all pass; `mypy` and `tsc -b` report
-no errors; the production build succeeds. Agent collectors and the performance engine
-are unit-tested deterministically (no dependency on the CI machine's actual state) and
-separately verified live against a real machine — see "Real agent (LIVE mode)" and
-"Performance" above.
+At the time of writing: 159 Python tests (engine incl. performance diagnosis, agent
+unit tests, backend unit/API/live-mode/agent-registry/scan/performance, integration,
+and a dedicated adversarial security suite) and 68 frontend tests all pass; `mypy` and
+`tsc -b` report no errors; the production build succeeds. Agent collectors and the
+performance engine are unit-tested deterministically (no dependency on the CI
+machine's actual state) and separately verified live against a real machine — see
+"Real agent (LIVE mode)" and "Performance" above. The full connect flow (register →
+run the real agent → real hostname/processes appear → scan → stop the agent → goes
+offline after the staleness window) has also been live-verified end to end on a
+scratch backend instance.
 
 ## Known limitations
 
@@ -215,6 +271,15 @@ separately verified live against a real machine — see "Real agent (LIVE mode)"
   postgres/redis EC2 box) is not implemented — only the agent that would monitor such
   a box exists. `agent/agent.py` now exists and is real, but has only been verified
   against local Linux/Windows dev machines, not a real EC2 instance.
+- Single active twin, not a multi-VM fleet: `GET /agents` lists every agent ever
+  registered, but only one agent's telemetry is ever "the" twin at a time (whichever
+  most recently ingested). This matches the product's current single-VM scope; a
+  fleet view would be a separate, larger feature.
+- No `POST /agents/{id}/heartbeat` or `POST /agents/{id}/snapshot` endpoints, by
+  design: the agent's existing `--fast-interval` (3s default) full-snapshot push to
+  `/ingest` already updates `last_seen`, so a separate empty heartbeat endpoint would
+  be unused; and `/ingest` already resolves the agent's identity from its bearer
+  token, which is safer than trusting an unauthenticated `{id}` in a URL.
 - Docker/container telemetry, network-anomaly analysis, telemetry trend charts beyond
   the simple history table, and a snapshot-upload flow are not implemented yet — raw
   telemetry needed for these is already being captured and stored, but no analysis/UI
