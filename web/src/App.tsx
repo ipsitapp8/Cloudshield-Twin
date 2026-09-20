@@ -7,6 +7,7 @@ import { FindingsPanel } from './components/FindingsPanel'
 import { FailurePanel } from './components/FailurePanel'
 import { AttackPanel } from './components/AttackPanel'
 import { SpofPanel } from './components/SpofPanel'
+import { PerformancePanel } from './components/PerformancePanel'
 import { ProbePanel } from './components/ProbePanel'
 import { EventsPanel } from './components/EventsPanel'
 import { ExplainPanel } from './components/ExplainPanel'
@@ -22,6 +23,7 @@ const TABS = [
   { id: 'failure', label: 'Failure', render: () => <FailurePanel /> },
   { id: 'attack', label: 'Attack', render: () => <AttackPanel /> },
   { id: 'spof', label: 'SPOF', render: () => <SpofPanel /> },
+  { id: 'performance', label: 'Performance', render: () => <PerformancePanel /> },
   { id: 'probe', label: 'Probe', render: () => <ProbePanel /> },
   { id: 'events', label: 'Events', render: () => <EventsPanel /> },
   { id: 'explain', label: 'Explain', render: () => <ExplainPanel /> },

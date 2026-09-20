@@ -19,6 +19,7 @@ from engine import attack as attack_engine
 from engine import drift as drift_engine
 from engine import exposure as exposure_engine
 from engine import failure as failure_engine
+from engine import performance as performance_engine
 from engine import remediate as remediate_engine
 from engine.models import AgentSnapshot, Finding, Patch, TwinConfig
 from engine.twin import build_twin
@@ -159,6 +160,42 @@ class Backend:
 
     def spof(self) -> list[dict]:
         return failure_engine.spof(self.build_twin(), self.twin_config)
+
+    # -- performance ---------------------------------------------------------
+
+    def performance(self) -> dict:
+        agent = self._latest_agent
+        if agent is None or agent.cpu is None and agent.memory is None:
+            return {
+                "available": False,
+                "reason": "no live telemetry yet (demo/replay mode has no CPU/memory data)",
+                "source": self._mode,
+            }
+        diagnosis = performance_engine.diagnose(
+            cpu=agent.cpu.model_dump() if agent.cpu else None,
+            memory=agent.memory.model_dump() if agent.memory else None,
+            disks=[d.model_dump() for d in agent.disks],
+            processes=[p.model_dump() for p in agent.processes],
+        )
+        raw_history = [
+            s["payload"]
+            for s in self.store.list_snapshots("agent", limit=40)
+            if s["payload"].get("cpu") and s["payload"]["cpu"].get("percent") is not None
+        ]
+        raw_history.reverse()  # store returns newest-first; history wants oldest-first
+        samples = [
+            {"ts": s["ts"], "cpu_percent": s["cpu"]["percent"], "memory_percent": (s.get("memory") or {}).get("percent")}
+            for s in raw_history
+        ]
+        history = performance_engine.summarize_history(samples)
+        return {
+            "available": True,
+            "source": self._mode,
+            "observed": diagnosis["observed"],
+            "findings": diagnosis["findings"],
+            "explanation": performance_engine.explain(diagnosis),
+            "history": history,
+        }
 
     # -- fix / apply / rollback ---------------------------------------------
 
@@ -322,6 +359,10 @@ def create_app(**backend_kwargs) -> FastAPI:
     @app.get("/spof")
     def spof():
         return backend.spof()
+
+    @app.get("/performance")
+    def performance():
+        return backend.performance()
 
     @app.get("/fix/{finding_id}")
     def fix_preview(finding_id: str):

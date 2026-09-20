@@ -7,6 +7,7 @@ import type {
   ExplainResult,
   FailureResult,
   FixPreview,
+  PerformanceResult,
   ProbeResult,
   ReplayStepResult,
   RollbackResult,
@@ -80,6 +81,8 @@ export const api = {
     }),
 
   getSpof: () => request<SpofEntry[]>('/spof'),
+
+  getPerformance: () => request<PerformanceResult>('/performance'),
 
   getFixPreview: (findingId: string) => request<FixPreview>(`/fix/${encodeURIComponent(findingId)}`),
 

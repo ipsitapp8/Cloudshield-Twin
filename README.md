@@ -120,6 +120,28 @@ live twin within one slow-refresh cycle, with no process killed and no system st
 changed. `AWS_MODE` is independent of this — LIVE agent telemetry still pairs with
 `fake` (default) or `real` AWS data for the security-exposure layer.
 
+### Performance — "Why is my VM slow?"
+
+Once a real agent is connected, the **Performance** tab (`GET /performance`) answers
+this from the actual telemetry: observed CPU/memory/swap/disk numbers, a deterministic
+evidence-backed diagnosis (`engine/performance.py` — e.g. `CPU_BOTTLENECK` only fires
+above a threshold, with `high` confidence only when one process explains most of the
+usage; `SWAP_PRESSURE`/`MEMORY_PRESSURE`/`DISK_SPACE_PRESSURE` similarly threshold-
+and evidence-based; `NO_BOTTLENECK_DETECTED` when nothing crosses a threshold), a
+plain-English conclusion citing the exact numbers (never an LLM guess — `POST
+/explain` with `kind: "performance"` also routes through this same deterministic
+function), and a short history table built from already-stored snapshots (no new
+persistence). In demo/replay mode this reports `available: false` rather than
+fabricating numbers, since fixtures carry no CPU/memory telemetry.
+
+Live-verified against this dev machine: real CPU (~10%), memory (~79%), swap (~15%,
+which correctly triggered a `SWAP_PRESSURE` finding citing that exact number), and
+disk usage all reported, with history accumulating real samples over time. One
+Windows-specific rough edge observed during verification: `psutil`'s "System Idle
+Process" can report a nonsensical `cpu_percent` (e.g. >1000%) as a platform quirk of
+per-process CPU accounting on Windows — it doesn't affect the bottleneck thresholds
+(which key off total CPU%, not the flagged top process) but is worth knowing about.
+
 ### Real AWS mode (not exercised by the test suite)
 
 ```bash
@@ -179,12 +201,13 @@ npm run build         # production build
 npm run lint          # oxlint
 ```
 
-At the time of writing: 130 Python tests (engine, agent unit tests, backend unit/API,
-live-mode, integration, and a dedicated adversarial security suite) and 50 frontend
-tests all pass; `mypy` and `tsc -b` report no errors; the production build succeeds.
-Agent collectors are unit-tested with `psutil` mocked (deterministic, no dependency on
-the CI machine's actual state) and separately verified live against a real machine —
-see "Real agent (LIVE mode)" above.
+At the time of writing: 148 Python tests (engine incl. performance diagnosis, agent
+unit tests, backend unit/API/live-mode/performance, integration, and a dedicated
+adversarial security suite) and 52 frontend tests all pass; `mypy` and `tsc -b` report
+no errors; the production build succeeds. Agent collectors and the performance engine
+are unit-tested deterministically (no dependency on the CI machine's actual state) and
+separately verified live against a real machine — see "Real agent (LIVE mode)" and
+"Performance" above.
 
 ## Known limitations
 
@@ -192,10 +215,16 @@ see "Real agent (LIVE mode)" above.
   postgres/redis EC2 box) is not implemented — only the agent that would monitor such
   a box exists. `agent/agent.py` now exists and is real, but has only been verified
   against local Linux/Windows dev machines, not a real EC2 instance.
-- Docker/container telemetry, a dedicated performance-bottleneck ("why is my VM
-  slow?") engine, network-anomaly analysis, telemetry history/trend charts, and a
-  snapshot-upload flow are not implemented yet — raw telemetry needed for these is
-  already being captured and stored, but no analysis/UI for them exists.
+- Docker/container telemetry, network-anomaly analysis, telemetry trend charts beyond
+  the simple history table, and a snapshot-upload flow are not implemented yet — raw
+  telemetry needed for these is already being captured and stored, but no analysis/UI
+  for them exists.
+- Performance diagnosis's disk findings cover disk *space* usage only, not I/O
+  wait/throughput — psutil doesn't expose I/O wait % cross-platform, so this was left
+  out rather than approximated with a fabricated number.
+- `psutil`'s "System Idle Process" can report a nonsensical `cpu_percent` on Windows
+  (observed during live verification) — a platform quirk, not a bug in the diagnosis
+  logic, which keys off total CPU% for its threshold, not the flagged top process.
 - `AWS_MODE=real` and Bedrock have not been exercised against real AWS in any phase;
   only fake/replay mode has automated test coverage.
 - The agent has been live-verified on Windows (this dev environment) via `psutil`,

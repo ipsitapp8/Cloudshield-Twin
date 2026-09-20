@@ -68,6 +68,31 @@ export interface SpofEntry {
   count: number
 }
 
+export type PerformanceConfidence = 'high' | 'medium' | 'low'
+
+export interface PerformanceFinding {
+  type: string
+  evidence: string[]
+  confidence: PerformanceConfidence
+  explanation: string
+}
+
+export interface PerformanceHistorySample {
+  ts: number
+  cpu_percent: number
+  memory_percent: number | null
+}
+
+export interface PerformanceResult {
+  available: boolean
+  source: 'demo' | 'live'
+  reason?: string
+  observed?: Record<string, unknown>
+  findings?: PerformanceFinding[]
+  explanation?: string
+  history?: { series: PerformanceHistorySample[]; trend: string | null }
+}
+
 export interface AttackPath {
   path: string[]
   hops: number

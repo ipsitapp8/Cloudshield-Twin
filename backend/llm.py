@@ -11,6 +11,8 @@ import concurrent.futures
 import json
 import os
 
+from engine import performance as performance_engine
+
 BEDROCK_TIMEOUT_SECONDS = 8
 
 
@@ -50,6 +52,8 @@ def _explain_template(context: dict) -> dict:
         )
     elif kind == "risk":
         text = f"Attack surface {context.get('attack_surface')} ({context.get('band')})."
+    elif kind == "performance":
+        text = performance_engine.explain(context)
     else:
         text = "No structured context recognized; no explanation generated."
     return {"source": "template", "generated_by": "deterministic", "text": text}
