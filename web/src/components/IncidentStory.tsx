@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api/client'
 import { Badge } from './Badge'
+import { useCountUp } from '../hooks/useCountUp'
 import type { FixPreview } from '../api/types'
 
 const FINDING_ID = 'exposure-redis'
@@ -24,13 +25,20 @@ interface Beat {
   render: (data: StoryData) => React.ReactNode
 }
 
-function riskLine(preview: FixPreview | undefined) {
+function AnimatedNumber({ value, className }: { value: number | undefined; className?: string }) {
+  const animated = useCountUp(value)
+  return <span className={className}>{value !== undefined ? String(animated ?? value) : '—'}</span>
+}
+
+function RiskLine({ preview, toneClass = 'text-slate-100' }: { preview: FixPreview | undefined; toneClass?: string }) {
   const risk = preview?.candidates[0]?.before
+  const attackSurface = typeof risk?.attack_surface === 'number' ? risk.attack_surface : undefined
+  const band = typeof risk?.band === 'string' ? risk.band : undefined
   if (!risk) return null
   return (
     <div className="flex items-center gap-2">
-      <span className="font-mono text-2xl font-bold text-slate-100">{String(risk.attack_surface)}</span>
-      {typeof risk.band === 'string' && <Badge tone={risk.band}>{risk.band}</Badge>}
+      <AnimatedNumber value={attackSurface} className={`font-mono text-2xl font-bold ${toneClass}`} />
+      {band && <Badge tone={band}>{band}</Badge>}
     </div>
   )
 }
@@ -84,7 +92,7 @@ const BEATS: Beat[] = [
         </div>
         <div>
           <p className="text-xs uppercase tracking-wide text-slate-500">Attack surface right now</p>
-          {riskLine(data.exposedFinding)}
+          <RiskLine preview={data.exposedFinding} />
         </div>
       </div>
     ),
@@ -102,7 +110,17 @@ const BEATS: Beat[] = [
       data.attackPath ? (
         <div className="space-y-2">
           <p className="rounded border border-red-800 bg-red-950/20 p-2 font-mono text-sm text-red-200">
-            {data.attackPath.join(' → ')}
+            {data.attackPath.map((hop, i) => (
+              <span key={i}>
+                <span
+                  className="inline-block animate-fade-slide-up"
+                  style={{ animationDelay: `${i * 150}ms`, animationFillMode: 'both' }}
+                >
+                  {hop}
+                </span>
+                {i < data.attackPath!.length - 1 && ' → '}
+              </span>
+            ))}
           </p>
           <p className="text-xs text-slate-400">
             MITRE: {data.attackMitre?.join(', ') || '—'} · blast radius: {data.blastRadius} reachable assets
@@ -159,15 +177,16 @@ const BEATS: Beat[] = [
           <div className="flex items-center gap-4 text-sm">
             <div>
               <p className="text-[10px] uppercase text-slate-500">Before</p>
-              {riskLine(data.fixedFinding)}
+              <RiskLine preview={data.fixedFinding} />
             </div>
             <span className="text-slate-600">→</span>
             <div>
               <p className="text-[10px] uppercase text-slate-500">After (if applied)</p>
               <div className="flex items-center gap-2">
-                <span className="font-mono text-2xl font-bold text-emerald-400">
-                  {String(best?.after.attack_surface ?? '—')}
-                </span>
+                <AnimatedNumber
+                  value={typeof best?.after.attack_surface === 'number' ? best.after.attack_surface : undefined}
+                  className="font-mono text-2xl font-bold text-emerald-400"
+                />
                 {typeof best?.after.band === 'string' && <Badge tone={best.after.band}>{best.after.band}</Badge>}
               </div>
             </div>
@@ -219,7 +238,9 @@ export function IncidentStory({ onClose }: { onClose: () => void }) {
             {BEATS.map((_, i) => (
               <span
                 key={i}
-                className={`h-1.5 w-6 rounded-full ${i <= step ? 'bg-purple-600' : 'bg-slate-700'}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  i === step ? 'w-8 bg-purple-500' : i < step ? 'w-6 bg-purple-700' : 'w-6 bg-slate-700'
+                }`}
               />
             ))}
           </div>
@@ -231,11 +252,31 @@ export function IncidentStory({ onClose }: { onClose: () => void }) {
         <p className="text-xs font-semibold uppercase tracking-widest text-purple-400">
           Step {step + 1} of {BEATS.length}
         </p>
-        <h2 className="mt-1 text-xl font-bold text-slate-50">{beat.title}</h2>
-        <p className="mt-2 text-sm text-slate-300">{beat.narration(data)}</p>
+        <h2 key={`title-${step}`} className="mt-1 animate-fade-slide-up text-xl font-bold text-slate-50">
+          {beat.title}
+        </h2>
+        <p key={`narration-${step}`} className="mt-2 animate-fade-slide-up text-sm text-slate-300">
+          {beat.narration(data)}
+        </p>
 
-        <div className="mt-4 min-h-[72px] rounded border border-slate-800 bg-slate-950/50 p-3">
-          {status === 'loading' && <p className="text-sm text-slate-500">Running against the real backend…</p>}
+        <div
+          key={`body-${step}`}
+          className="mt-4 min-h-[72px] animate-fade-slide-up rounded border border-slate-800 bg-slate-950/50 p-3"
+        >
+          {status === 'loading' && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <span>Running against the real backend</span>
+              <span className="flex gap-1">
+                {[0, 150, 300].map((delay) => (
+                  <span
+                    key={delay}
+                    className="h-1.5 w-1.5 animate-dot-pulse rounded-full bg-slate-500"
+                    style={{ animationDelay: `${delay}ms` }}
+                  />
+                ))}
+              </span>
+            </div>
+          )}
           {status === 'error' && (
             <p role="alert" className="text-sm text-red-400">
               Something went wrong talking to the backend — is it running?

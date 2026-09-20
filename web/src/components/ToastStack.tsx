@@ -19,7 +19,9 @@ export function ToastStack() {
         <div
           key={toast.id}
           role="status"
-          className={`rounded border px-3 py-2 text-xs shadow-lg ${TONE_CLASS[toast.tone]}`}
+          className={`rounded border px-3 py-2 text-xs shadow-lg ${TONE_CLASS[toast.tone]} ${
+            toast.leaving ? 'animate-toast-out' : 'animate-toast-in'
+          }`}
         >
           {toast.text}
         </div>

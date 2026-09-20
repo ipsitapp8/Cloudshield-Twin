@@ -76,7 +76,9 @@ function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory:
         ))}
       </nav>
 
-      <main>{active.render()}</main>
+      <main key={tab} className="animate-fade-slide-up">
+        {active.render()}
+      </main>
 
       {storyOpen && <IncidentStory onClose={() => setStoryOpen(false)} />}
       <ToastStack />

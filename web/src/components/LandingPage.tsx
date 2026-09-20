@@ -36,28 +36,42 @@ export function LandingPage({ onEnter }: { onEnter: (playStory?: boolean) => voi
   return (
     <div className="mx-auto min-h-screen max-w-4xl px-4 py-10 text-slate-200">
       <section className="space-y-4 text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-purple-400">
+        <p
+          className="animate-fade-slide-up text-xs font-semibold uppercase tracking-widest text-purple-400"
+          style={{ animationDelay: '0ms', animationFillMode: 'both' }}
+        >
           Observe → Understand → Simulate → Remediate → Prove
         </p>
-        <h1 className="text-4xl font-bold text-slate-50">CloudShield Twin</h1>
-        <p className="mx-auto max-w-2xl text-base text-slate-300">
+        <h1
+          className="animate-fade-slide-up text-4xl font-bold text-slate-50"
+          style={{ animationDelay: '80ms', animationFillMode: 'both' }}
+        >
+          CloudShield Twin
+        </h1>
+        <p
+          className="mx-auto max-w-2xl animate-fade-slide-up text-base text-slate-300"
+          style={{ animationDelay: '160ms', animationFillMode: 'both' }}
+        >
           A live digital twin of your cloud VM — it knows what is really running, what depends on what,
           what breaks if a service goes down, and what an attacker could reach. Then it proposes the
           safest possible fix, and proves the fix actually worked.
         </p>
-        <div className="flex flex-col items-center gap-2 pt-2">
+        <div
+          className="flex animate-fade-slide-up flex-col items-center gap-2 pt-2"
+          style={{ animationDelay: '240ms', animationFillMode: 'both' }}
+        >
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => onEnter(true)}
-              className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+              className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white transition-transform duration-150 hover:scale-105 hover:bg-red-600"
             >
               ▶ Watch a 90-second incident
             </button>
             <button
               type="button"
               onClick={() => onEnter(false)}
-              className="rounded border border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+              className="rounded border border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-200 transition-transform duration-150 hover:scale-105 hover:bg-slate-800"
             >
               Launch the Twin →
             </button>
@@ -83,7 +97,11 @@ export function LandingPage({ onEnter }: { onEnter: (playStory?: boolean) => voi
         <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-400">How it works</h2>
         <ol className="space-y-2">
           {LOOP.map((item, i) => (
-            <li key={item.step} className="flex gap-3 rounded border border-slate-800 bg-slate-900/40 p-3">
+            <li
+              key={item.step}
+              className="flex animate-fade-slide-up gap-3 rounded border border-slate-800 bg-slate-900/40 p-3"
+              style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}
+            >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-purple-800 text-xs font-bold text-white">
                 {i + 1}
               </span>
@@ -132,7 +150,7 @@ npm run dev                            # frontend`}
           <button
             type="button"
             onClick={() => onEnter(false)}
-            className="rounded bg-purple-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-purple-600"
+            className="rounded bg-purple-700 px-5 py-2.5 text-sm font-semibold text-white transition-transform duration-150 hover:scale-105 hover:bg-purple-600"
           >
             Launch the Twin →
           </button>

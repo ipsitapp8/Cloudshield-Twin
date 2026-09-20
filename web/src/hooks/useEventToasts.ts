@@ -6,9 +6,11 @@ export interface Toast {
   id: string
   text: string
   tone: 'exposure' | 'live'
+  leaving?: boolean
 }
 
 const TOAST_LIFETIME_MS = 4500
+const TOAST_EXIT_MS = 250
 
 const DRIFT_TYPES = new Set(['NEW_EXPOSURE', 'NEW_LISTENER', 'NEW_FLOW', 'REMOVED'])
 
@@ -47,7 +49,10 @@ export function useEventToasts(): Toast[] {
   function push(text: string, tone: Toast['tone']) {
     const id = `${Date.now()}-${Math.random()}`
     setToasts((prev) => [...prev, { id, text, tone }])
-    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), TOAST_LIFETIME_MS)
+    setTimeout(() => {
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, leaving: true } : t)))
+      setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), TOAST_EXIT_MS)
+    }, TOAST_LIFETIME_MS)
   }
 
   useEffect(() => {

@@ -76,9 +76,16 @@ describe('IncidentStory', () => {
     await waitFor(() => expect(screen.getByText('7.5')).toBeInTheDocument())
     expect(screen.getByText('HIGH')).toBeInTheDocument()
 
-    // Beat 4: attack path, real returned path + MITRE
+    // Beat 4: attack path (revealed hop by hop for the staggered animation, so the full
+    // path only exists as one element's combined textContent, not a single text node)
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
-    await waitFor(() => expect(screen.getByText(/internet → redis → host → imds → role → demo-data/)).toBeInTheDocument())
+    await waitFor(() =>
+      expect(
+        screen.getByText((_, el) => /internet.*redis.*host.*imds.*role.*demo-data/.test(el?.textContent ?? ''), {
+          selector: 'p.font-mono',
+        }),
+      ).toBeInTheDocument(),
+    )
     expect(screen.getByText(/T1190/)).toBeInTheDocument()
 
     // Beat 5: failure, real cascade

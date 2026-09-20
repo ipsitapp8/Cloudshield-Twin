@@ -63,10 +63,12 @@ export function buildFlowElements(
   const nodes: Node[] = graph.nodes.map((n) => {
     const pos = g.node(n.id) ?? { x: 0, y: 0 }
     const isHighlighted = highlight?.nodeIds?.has(n.id) ?? !dimmed
+    const atRisk = n.state === 'down' || n.state === 'compromised' || Boolean(n.noauth)
     return {
       id: n.id,
       position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
       data: { label: labelForNode(n), kind: n.kind, state: n.state },
+      className: atRisk && isHighlighted ? 'twin-node-pulse' : undefined,
       style: {
         width: NODE_WIDTH,
         background: KIND_COLOR[n.kind] ?? '#1f2937',

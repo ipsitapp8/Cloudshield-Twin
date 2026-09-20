@@ -26,7 +26,7 @@ const COLORS: Record<string, string> = {
 export function Badge({ children, tone }: { children: string; tone?: string }) {
   const cls = COLORS[tone ?? children] ?? 'bg-slate-800 text-slate-300 border-slate-600'
   return (
-    <span className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${cls}`}>
+    <span className={`inline-block rounded border px-2 py-0.5 text-xs font-medium transition-colors duration-300 ${cls}`}>
       {children}
     </span>
   )
