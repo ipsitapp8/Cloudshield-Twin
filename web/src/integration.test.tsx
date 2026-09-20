@@ -47,6 +47,9 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     act(() => MockWebSocket.instances[0].emit({ type: 'REPLAY_STEP', scenario: 'exposed' }))
     await waitFor(() => expect(screen.getByTestId('finding-status')).toHaveTextContent('exposed'))
 
+    // -- live toast: the NEW_EXPOSURE drift event surfaces immediately, not just in the Events tab
+    await waitFor(() => expect(screen.getByText(/new exposure.*redis/i)).toBeInTheDocument())
+
     const acceptedRow = screen.getByText('patch-sg-revoke-redis-6379').closest('li')!
     expect(within(acceptedRow).getByTestId('risk-before')).toHaveTextContent('attack_surface=7.5')
     expect(within(acceptedRow).getByTestId('risk-after')).toHaveTextContent('attack_surface=1.5')

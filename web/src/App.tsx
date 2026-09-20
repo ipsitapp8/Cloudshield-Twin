@@ -11,6 +11,9 @@ import { ProbePanel } from './components/ProbePanel'
 import { EventsPanel } from './components/EventsPanel'
 import { ExplainPanel } from './components/ExplainPanel'
 import { LandingPage } from './components/LandingPage'
+import { RiskBar } from './components/RiskBar'
+import { ToastStack } from './components/ToastStack'
+import { IncidentStory } from './components/IncidentStory'
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard', render: () => <TwinDashboard /> },
@@ -23,8 +26,9 @@ const TABS = [
   { id: 'explain', label: 'Explain', render: () => <ExplainPanel /> },
 ] as const
 
-function Shell({ onHome }: { onHome: () => void }) {
+function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory: boolean }) {
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('dashboard')
+  const [storyOpen, setStoryOpen] = useState(autoStartStory)
   const active = TABS.find((t) => t.id === tab) ?? TABS[0]
 
   return (
@@ -40,7 +44,15 @@ function Shell({ onHome }: { onHome: () => void }) {
           </button>
           <p className="text-xs text-slate-500">Observe → Understand → Simulate → Remediate → Prove</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <RiskBar />
+          <button
+            type="button"
+            onClick={() => setStoryOpen(true)}
+            className="rounded border border-purple-700 px-3 py-1 text-xs font-medium text-purple-300 hover:bg-purple-900/30"
+          >
+            ▶ Play incident
+          </button>
           <ReplayControls />
           <ConnectionBadge />
         </div>
@@ -65,20 +77,31 @@ function Shell({ onHome }: { onHome: () => void }) {
       </nav>
 
       <main>{active.render()}</main>
+
+      {storyOpen && <IncidentStory onClose={() => setStoryOpen(false)} />}
+      <ToastStack />
     </div>
   )
 }
 
 export default function App() {
   const [entered, setEntered] = useState(false)
+  const [startStory, setStartStory] = useState(false)
 
   if (!entered) {
-    return <LandingPage onEnter={() => setEntered(true)} />
+    return (
+      <LandingPage
+        onEnter={(playStory) => {
+          setStartStory(Boolean(playStory))
+          setEntered(true)
+        }}
+      />
+    )
   }
 
   return (
     <LiveProvider>
-      <Shell onHome={() => setEntered(false)} />
+      <Shell onHome={() => setEntered(false)} autoStartStory={startStory} />
     </LiveProvider>
   )
 }

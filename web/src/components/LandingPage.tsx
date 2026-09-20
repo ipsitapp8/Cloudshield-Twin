@@ -32,7 +32,7 @@ const FEATURES = [
   { label: 'Explain', detail: 'Plain-English summaries from structured data — deterministic by default, AI optional.' },
 ]
 
-export function LandingPage({ onEnter }: { onEnter: () => void }) {
+export function LandingPage({ onEnter }: { onEnter: (playStory?: boolean) => void }) {
   return (
     <div className="mx-auto min-h-screen max-w-4xl px-4 py-10 text-slate-200">
       <section className="space-y-4 text-center">
@@ -46,13 +46,22 @@ export function LandingPage({ onEnter }: { onEnter: () => void }) {
           safest possible fix, and proves the fix actually worked.
         </p>
         <div className="flex flex-col items-center gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onEnter}
-            className="rounded bg-purple-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-purple-600"
-          >
-            Launch the Twin →
-          </button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => onEnter(true)}
+              className="rounded bg-red-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-600"
+            >
+              ▶ Watch a 90-second incident
+            </button>
+            <button
+              type="button"
+              onClick={() => onEnter(false)}
+              className="rounded border border-slate-600 px-5 py-2.5 text-sm font-semibold text-slate-200 hover:bg-slate-800"
+            >
+              Launch the Twin →
+            </button>
+          </div>
           <p className="text-xs text-slate-500">
             Runs fully offline in replay mode — no AWS account, no credentials, no real VM needed to try it.
           </p>
@@ -122,7 +131,7 @@ npm run dev                            # frontend`}
         <div className="pt-2 text-center">
           <button
             type="button"
-            onClick={onEnter}
+            onClick={() => onEnter(false)}
             className="rounded bg-purple-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-purple-600"
           >
             Launch the Twin →
