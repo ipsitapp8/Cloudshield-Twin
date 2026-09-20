@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
+import { api } from './api/client'
+import { useAsyncAction } from './hooks/useAsync'
 import { LiveProvider } from './hooks/LiveContext'
 import { ConnectionBadge } from './components/ConnectionBadge'
+import { ConnectVM } from './components/ConnectVM'
 import { ReplayControls } from './components/ReplayControls'
 import { TwinDashboard } from './components/TwinDashboard'
 import { FindingsPanel } from './components/FindingsPanel'
@@ -10,6 +13,7 @@ import { AttackPanel } from './components/AttackPanel'
 import { SpofPanel } from './components/SpofPanel'
 import { PerformancePanel } from './components/PerformancePanel'
 import { ProbePanel } from './components/ProbePanel'
+import { ProcessesPanel } from './components/ProcessesPanel'
 import { EventsPanel } from './components/EventsPanel'
 import { ExplainPanel } from './components/ExplainPanel'
 import { AiAgentPage } from './components/AiAgentPage'
@@ -53,6 +57,7 @@ const SECTIONS: SectionDef[] = [
       { id: 'performance', label: 'Performance', render: () => <PerformancePanel /> },
       { id: 'spof', label: 'SPOF', render: () => <SpofPanel /> },
       { id: 'probe', label: 'Probe', render: () => <ProbePanel /> },
+      { id: 'processes', label: 'Processes', render: () => <ProcessesPanel /> },
     ],
   },
   {
@@ -120,6 +125,27 @@ function Sidebar({ activeSectionId, onSelect, onHome }: { activeSectionId: strin
   )
 }
 
+function ScanNowButton() {
+  const scan = useAsyncAction(api.scanNow)
+  const label =
+    scan.state.status === 'loading'
+      ? 'Scanning…'
+      : scan.state.status === 'success'
+        ? `Scanned ${Math.max(0, Math.round(Date.now() / 1000 - scan.state.data.scanned_at))}s ago`
+        : 'Scan Now'
+
+  return (
+    <button
+      type="button"
+      onClick={() => scan.run().catch(() => {})}
+      disabled={scan.state.status === 'loading'}
+      className="rounded border border-slate-700 px-2.5 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-800 disabled:opacity-50"
+    >
+      {label}
+    </button>
+  )
+}
+
 function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory: boolean }) {
   const [tab, setTab] = useState('dashboard')
   const [storyOpen, setStoryOpen] = useState(autoStartStory)
@@ -141,6 +167,7 @@ function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory:
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <RiskBar />
+            <ScanNowButton />
             <ReplayControls />
             <button
               type="button"
@@ -194,21 +221,36 @@ function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory:
 export default function App() {
   const [entered, setEntered] = useState(false)
   const [startStory, setStartStory] = useState(false)
+  // "Watch Demo" skips the gate -- IncidentStory's first beat already calls
+  // replayReset() itself, so it satisfies the explicit-demo-activation requirement
+  // on its own. Any other entry point must pass through ConnectVM first.
+  const [connected, setConnected] = useState(false)
 
   if (!entered) {
     return (
       <LandingPage
         onEnter={(playStory) => {
           setStartStory(Boolean(playStory))
+          setConnected(Boolean(playStory))
           setEntered(true)
         }}
       />
     )
   }
 
+  if (!connected) {
+    return <ConnectVM onConnected={() => setConnected(true)} />
+  }
+
   return (
     <LiveProvider>
-      <Shell onHome={() => setEntered(false)} autoStartStory={startStory} />
+      <Shell
+        onHome={() => {
+          setEntered(false)
+          setConnected(false)
+        }}
+        autoStartStory={startStory}
+      />
     </LiveProvider>
   )
 }

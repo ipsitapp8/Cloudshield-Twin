@@ -13,9 +13,21 @@ export function AgentStatusBadge() {
     return null
   }
 
-  const mode = twin.data.mode ?? 'demo'
+  const mode = twin.data.mode ?? 'unconnected'
   const connected = twin.data.connected ?? false
   const lastSeen = twin.data.last_seen_seconds_ago
+
+  if (mode === 'unconnected') {
+    return (
+      <span
+        data-testid="agent-status"
+        className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-500"
+      >
+        <span className="h-2 w-2 rounded-full bg-slate-600" aria-hidden="true" />
+        NO VM CONNECTED
+      </span>
+    )
+  }
 
   if (mode === 'demo') {
     return (

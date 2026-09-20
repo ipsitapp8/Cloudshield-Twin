@@ -7,7 +7,13 @@ import { api } from '../api/client'
 afterEach(() => vi.restoreAllMocks())
 
 describe('AgentStatusBadge', () => {
-  it('shows DEMO / REPLAY when no real agent has ever connected', async () => {
+  it('shows NO VM CONNECTED before any agent/demo action', async () => {
+    vi.spyOn(api, 'getTwin').mockResolvedValue({ nodes: [], edges: [], mode: 'unconnected', connected: false })
+    renderWithLive(<AgentStatusBadge />)
+    await waitFor(() => expect(screen.getByTestId('agent-status')).toHaveTextContent('NO VM CONNECTED'))
+  })
+
+  it('shows DEMO / REPLAY once demo mode is explicitly activated', async () => {
     vi.spyOn(api, 'getTwin').mockResolvedValue({ nodes: [], edges: [], mode: 'demo', connected: false })
     renderWithLive(<AgentStatusBadge />)
     await waitFor(() => expect(screen.getByTestId('agent-status')).toHaveTextContent('DEMO / REPLAY'))

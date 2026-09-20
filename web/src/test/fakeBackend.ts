@@ -166,6 +166,11 @@ export function installFakeBackendFetch(backend: FakeBackend) {
     if (url.pathname === '/twin' && method === 'GET') {
       return json(twinFor(backend.scenario))
     }
+    if (url.pathname === '/connection' && method === 'GET') {
+      // FakeBackend always serves scenario-based twin data, equivalent to demo mode
+      // already being active -- ConnectVM's initial check should skip its own gate.
+      return json({ mode: 'demo', connected: false, agent_id: null, hostname: null, last_seen_seconds_ago: null })
+    }
     if (url.pathname === '/fix/exposure-redis' && method === 'GET') {
       return json(backend.fixPreview())
     }

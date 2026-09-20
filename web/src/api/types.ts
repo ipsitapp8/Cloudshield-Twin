@@ -37,11 +37,13 @@ export interface TwinEdge {
 export interface TwinGraph {
   nodes: TwinNode[]
   edges: TwinEdge[]
-  // Present once a real agent has ever connected this session (see agent/agent.py +
-  // backend/main.py's live-mode tracking). Absent/undefined on older responses.
-  mode?: 'demo' | 'live'
+  // 'unconnected' is the real default until a real agent ingests or demo/replay
+  // mode is explicitly activated (see backend/main.py's Backend._mode).
+  mode?: 'unconnected' | 'demo' | 'live'
   connected?: boolean
   last_seen_seconds_ago?: number | null
+  agent_id?: string | null
+  hostname?: string | null
 }
 
 export type ExposureStatus = 'exposed' | 'latent' | 'internal' | 'closed'
@@ -85,7 +87,7 @@ export interface PerformanceHistorySample {
 
 export interface PerformanceResult {
   available: boolean
-  source: 'demo' | 'live'
+  source: 'unconnected' | 'demo' | 'live'
   reason?: string
   observed?: Record<string, unknown>
   findings?: PerformanceFinding[]
@@ -166,4 +168,68 @@ export type ReplayScenario = 'healthy' | 'latent' | 'exposed' | 'fixed'
 export interface ReplayStepResult {
   scenario: ReplayScenario
   twin: TwinGraph
+}
+
+export interface RegisterAgentResult {
+  agent_id: string
+  token: string
+}
+
+export interface ConnectionStatus {
+  mode: 'unconnected' | 'demo' | 'live'
+  connected: boolean
+  agent_id: string | null
+  hostname: string | null
+  last_seen_seconds_ago: number | null
+}
+
+export interface AgentSummary {
+  agent_id: string
+  hostname: string | null
+  created_at: number
+  last_seen: number | null
+  last_seen_seconds_ago: number | null
+  connected: boolean
+}
+
+export interface AgentStatus {
+  agent_id: string
+  connected: boolean
+  last_seen_seconds_ago: number | null
+}
+
+export interface ProcessInfo {
+  pid: number | null
+  ppid: number | null
+  name: string
+  exe: string | null
+  user: string
+  cpu_percent: number | null
+  memory_percent: number | null
+  create_time: number | null
+  cmdline: string[] | null
+}
+
+export interface ListenerInfo {
+  pid: number
+  proc: string
+  user: string
+  proto: string
+  bind: string
+  port: number
+}
+
+export interface ProcessesResult {
+  available: boolean
+  processes?: ProcessInfo[]
+  listeners?: ListenerInfo[]
+}
+
+export interface ScanResult {
+  status: 'complete'
+  scanned_at: number
+  mode: 'unconnected' | 'demo' | 'live'
+  twin: TwinGraph
+  findings: Finding[]
+  spof: SpofEntry[]
 }

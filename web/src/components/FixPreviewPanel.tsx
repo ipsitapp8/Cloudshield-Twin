@@ -5,6 +5,7 @@ import { useLive } from '../hooks/LiveContext'
 import { AsyncBoundary } from './AsyncBoundary'
 import { Badge } from './Badge'
 import { ApplyConfirmDialog } from './ApplyConfirmDialog'
+import { exposureLabel } from '../lib/exposureLabel'
 import type { Patch } from '../api/types'
 
 function RiskNumbers({ label, risk }: { label: string; risk: Record<string, unknown> }) {
@@ -82,7 +83,8 @@ export function FixPreviewPanel({ findingId }: { findingId: string }) {
               <span data-testid="finding-status">
                 <Badge tone={data.finding.status}>{data.finding.status}</Badge>
               </span>{' '}
-              · confidence {data.finding.confidence}
+              · confidence {data.finding.confidence}{' '}
+              <span className="text-slate-500">({exposureLabel(data.finding)})</span>
             </p>
             <ul className="space-y-2">
               {data.candidates.map((patch) => (

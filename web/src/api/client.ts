@@ -1,16 +1,22 @@
 // Thin fetch wrapper around the existing backend/main.py FastAPI endpoints.
 // No endpoint here is invented: every path/method matches backend/main.py exactly.
 import type {
+  AgentStatus,
+  AgentSummary,
   ApplyResult,
   AttackResult,
+  ConnectionStatus,
   EventEntry,
   ExplainResult,
   FailureResult,
   FixPreview,
   PerformanceResult,
   ProbeResult,
+  ProcessesResult,
+  RegisterAgentResult,
   ReplayStepResult,
   RollbackResult,
+  ScanResult,
   SpofEntry,
   TwinGraph,
 } from './types'
@@ -111,4 +117,16 @@ export const api = {
   replayStep: () => request<ReplayStepResult>('/replay/step', { method: 'POST' }),
 
   replayReset: () => request<ReplayStepResult>('/replay/reset', { method: 'POST' }),
+
+  registerAgent: () => request<RegisterAgentResult>('/agents/register', { method: 'POST' }),
+
+  getConnection: () => request<ConnectionStatus>('/connection'),
+
+  getProcesses: () => request<ProcessesResult>('/processes'),
+
+  listAgents: () => request<AgentSummary[]>('/agents'),
+
+  getAgentStatus: (agentId: string) => request<AgentStatus>(`/agents/${encodeURIComponent(agentId)}/status`),
+
+  scanNow: () => request<ScanResult>('/scan', { method: 'POST' }),
 }
