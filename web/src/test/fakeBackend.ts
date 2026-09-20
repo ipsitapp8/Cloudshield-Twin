@@ -189,6 +189,9 @@ export function installFakeBackendFetch(backend: FakeBackend) {
     if (url.pathname === '/spof' && method === 'GET') {
       return json([])
     }
+    if (url.pathname === '/performance' && method === 'GET') {
+      return json({ available: false, source: 'demo', reason: 'no live telemetry yet' })
+    }
     if (url.pathname === '/simulate/failure' && method === 'POST') {
       const { node } = JSON.parse((init?.body as string) ?? '{}')
       return json(backend.simulateFailure(node))

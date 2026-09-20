@@ -27,7 +27,7 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     act(() => MockWebSocket.instances[0].open())
 
     // -- 1. HEALTHY: redis renders, not falsely exposed ------------------------------
-    await userEvent.click(screen.getByRole('button', { name: 'Findings & Fix' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Remediation' }))
     await waitFor(() => expect(screen.getByText('redis')).toBeInTheDocument())
     const redisRow = screen.getByText('redis').closest('li')!
     await userEvent.click(within(redisRow).getByRole('button', { name: /inspect/i }))
@@ -78,10 +78,11 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     expect(reloadSpy).not.toHaveBeenCalled()
 
     // -- 9. probe never claims success/failure it cannot back up ---------------------
+    await userEvent.click(screen.getByRole('button', { name: 'Infrastructure' }))
     await userEvent.click(screen.getByRole('button', { name: 'Probe' }))
     vi.stubGlobal('fetch', backendFetchWithProbe(backend, 'unknown'))
-    const main = screen.getByRole('main')
-    await userEvent.click(within(main).getByRole('button', { name: /^probe$/i }))
+    const probeSection = screen.getByRole('heading', { name: /external probe/i }).closest('section')!
+    await userEvent.click(within(probeSection).getByRole('button', { name: /^probe$/i }))
     await waitFor(() => expect(screen.getByText(/ambiguous result/i)).toBeInTheDocument())
   })
 
@@ -94,7 +95,7 @@ describe('integration: engine -> backend -> frontend (fake HTTP + WS)', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /launch the twin/i })[0])
     act(() => MockWebSocket.instances[0].open())
 
-    await userEvent.click(screen.getByRole('button', { name: 'Failure' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Simulation' }))
     await userEvent.selectOptions(screen.getByRole('combobox', { name: /node to fail/i }), 'redis')
     await userEvent.click(screen.getByRole('button', { name: /simulate failure/i }))
 
