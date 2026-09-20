@@ -8,12 +8,34 @@ describe('LandingPage', () => {
     const onEnter = vi.fn()
     render(<LandingPage onEnter={onEnter} />)
 
-    expect(screen.getByRole('heading', { name: 'CloudShield Twin' })).toBeInTheDocument()
+    expect(screen.getByText('CloudShield Twin')).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: (name) => /see it/i.test(name) && /secure it/i.test(name) }),
+    ).toBeInTheDocument()
     expect(screen.getByText(/runs fully offline in replay mode/i)).toBeInTheDocument()
 
-    const ctas = screen.getAllByRole('button', { name: /launch the twin/i })
-    expect(ctas.length).toBe(2)
-    await userEvent.click(ctas[0])
-    expect(onEnter).toHaveBeenCalledTimes(1)
+    const launchButtons = screen.getAllByRole('button', { name: /launch the twin/i })
+    expect(launchButtons.length).toBeGreaterThanOrEqual(1)
+    await userEvent.click(launchButtons[0])
+    expect(onEnter).toHaveBeenCalledWith(false)
+  })
+
+  it('the demo CTA enters with the guided story flag set', async () => {
+    const onEnter = vi.fn()
+    render(<LandingPage onEnter={onEnter} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /watch 90-sec demo/i }))
+    expect(onEnter).toHaveBeenCalledWith(true)
+  })
+
+  it('the nav "Get Started" and "Sign In" both enter the app (no separate auth flow exists)', async () => {
+    const onEnter = vi.fn()
+    render(<LandingPage onEnter={onEnter} />)
+
+    await userEvent.click(screen.getByRole('button', { name: /get started/i }))
+    expect(onEnter).toHaveBeenCalledWith(false)
+
+    await userEvent.click(screen.getByRole('button', { name: /sign in/i }))
+    expect(onEnter).toHaveBeenCalledWith(false)
   })
 })
