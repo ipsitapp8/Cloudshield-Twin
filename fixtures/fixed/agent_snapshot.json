@@ -1,0 +1,29 @@
+{
+  "ts": 1700000030.0,
+  "host": {
+    "instance_id": "i-0123456789abcdef0",
+    "private_ip": "10.0.1.5",
+    "public_ip": "3.91.100.20"
+  },
+  "listeners": [
+    {"pid": 100, "proc": "nginx", "user": "www-data", "proto": "tcp", "bind": "0.0.0.0", "port": 80},
+    {"pid": 200, "proc": "api", "user": "app", "proto": "tcp", "bind": "127.0.0.1", "port": 3000},
+    {"pid": 300, "proc": "postgres", "user": "postgres", "proto": "tcp", "bind": "127.0.0.1", "port": 5432},
+    {"pid": 400, "proc": "redis", "user": "redis", "proto": "tcp", "bind": "0.0.0.0", "port": 6379}
+  ],
+  "conns": [
+    {"pid": 100, "proc": "nginx", "laddr": "10.0.1.5:51000", "raddr": "127.0.0.1:3000", "status": "ESTABLISHED"},
+    {"pid": 200, "proc": "api", "laddr": "127.0.0.1:51001", "raddr": "127.0.0.1:5432", "status": "ESTABLISHED"},
+    {"pid": 200, "proc": "api", "laddr": "10.0.1.5:51002", "raddr": "10.0.1.5:6379", "status": "ESTABLISHED"}
+  ],
+  "containers": [],
+  "firewall": {
+    "backend": "iptables",
+    "input_policy": "deny",
+    "rules": [
+      {"proto": "tcp", "port": 80, "action": "allow", "src": "0.0.0.0/0"},
+      {"proto": "tcp", "port": 6379, "action": "allow", "src": "0.0.0.0/0"}
+    ]
+  },
+  "checks": {"redis_noauth": true}
+}

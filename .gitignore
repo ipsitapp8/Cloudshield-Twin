@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+# Local runtime artifacts (never committed: local demo state, not source)
+audit.jsonl
+*.db
+
+# Node / frontend
+web/node_modules/
+web/dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store

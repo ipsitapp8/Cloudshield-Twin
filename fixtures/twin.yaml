@@ -1,0 +1,12 @@
+tiers:
+  nginx: 1
+  api: 2
+  postgres: 3
+  redis: 2
+
+endpoints:
+  /checkout:
+    hard: [api, postgres, redis]
+  /products:
+    hard: [api, postgres]
+    soft: [redis]

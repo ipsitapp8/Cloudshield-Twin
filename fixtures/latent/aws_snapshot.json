@@ -1,0 +1,20 @@
+{
+  "instance": {
+    "id": "i-0123456789abcdef0",
+    "sg_ids": ["sg-0abc123"],
+    "imds_http_tokens": "required",
+    "role": "arn:aws:iam::123456789012:role/demo-role"
+  },
+  "security_groups": {
+    "sg-0abc123": {
+      "inbound": [
+        {"proto": "tcp", "from": 80, "to": 80, "cidr": "0.0.0.0/0"},
+        {"proto": "tcp", "from": 6379, "to": 6379, "cidr": "0.0.0.0/0"}
+      ]
+    }
+  },
+  "role_permissions": [
+    {"action": "s3:GetObject", "resource": "arn:aws:s3:::demo-data/*"},
+    {"action": "s3:ListBucket", "resource": "arn:aws:s3:::demo-data"}
+  ]
+}
