@@ -190,6 +190,63 @@ class Backend:
             "listeners": [ln.model_dump() for ln in self._latest_agent.listeners],
         }
 
+    # -- agent registry ---------------------------------------------------
+
+    def _agent_view(self, row: dict) -> dict:
+        connected = (
+            row["agent_id"] == self._connected_agent_id
+            and self._mode == "live"
+            and self._last_ingest_ts is not None
+            and (time.time() - self._last_ingest_ts) <= LIVE_STALE_SECONDS
+        )
+        last_seen_ts = row["last_seen_ts"]
+        return {
+            "agent_id": row["agent_id"],
+            "hostname": row["hostname"],
+            "created_at": row["created_ts"],
+            "last_seen": last_seen_ts,
+            "last_seen_seconds_ago": (time.time() - last_seen_ts) if last_seen_ts is not None else None,
+            "connected": connected,
+        }
+
+    def list_agents(self) -> list[dict]:
+        return [self._agent_view(row) for row in self.store.list_agents()]
+
+    def agent_detail(self, agent_id: str) -> dict:
+        row = self.store.get_agent(agent_id)
+        if row is None:
+            raise KeyError(agent_id)
+        return self._agent_view(row)
+
+    def agent_status(self, agent_id: str) -> dict:
+        view = self.agent_detail(agent_id)
+        return {
+            "agent_id": view["agent_id"],
+            "connected": view["connected"],
+            "last_seen_seconds_ago": view["last_seen_seconds_ago"],
+        }
+
+    # -- scan ---------------------------------------------------------------
+
+    def scan(self) -> dict:
+        """Recompute the twin + exposure + SPOF from the most recently *received*
+        telemetry. Cannot ask the agent to collect fresh data on demand -- telemetry
+        is strictly one-way (agent -> backend); the backend never commands the agent.
+        """
+        G = self.build_twin()
+        findings = exposure_engine.exposed_all(G)
+        spof_result = failure_engine.spof(G, self.twin_config)
+        scanned_at = time.time()
+        self.store.add_event("SCAN_COMPLETE", {"scanned_at": scanned_at, "finding_count": len(findings)})
+        return {
+            "status": "complete",
+            "scanned_at": scanned_at,
+            "mode": self._mode,
+            "twin": self.get_twin_json(),
+            "findings": [f.model_dump() for f in findings],
+            "spof": spof_result,
+        }
+
     # -- findings ---------------------------------------------------------
 
     def findings(self) -> list[Finding]:
@@ -402,6 +459,30 @@ def create_app(**backend_kwargs) -> FastAPI:
     @app.get("/processes")
     def processes():
         return backend.processes()
+
+    @app.get("/agents")
+    def list_agents():
+        return backend.list_agents()
+
+    @app.get("/agents/{agent_id}")
+    def agent_detail(agent_id: str):
+        try:
+            return backend.agent_detail(agent_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"unknown agent {agent_id!r}")
+
+    @app.get("/agents/{agent_id}/status")
+    def agent_status(agent_id: str):
+        try:
+            return backend.agent_status(agent_id)
+        except KeyError:
+            raise HTTPException(status_code=404, detail=f"unknown agent {agent_id!r}")
+
+    @app.post("/scan")
+    async def scan():
+        result = backend.scan()
+        await broadcast({"type": "SCAN_COMPLETE", "scanned_at": result["scanned_at"]})
+        return result
 
     @app.post("/ingest")
     async def ingest(body: dict, agent_id: str = Depends(check_bearer)):

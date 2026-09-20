@@ -72,3 +72,35 @@ def test_connected_becomes_false_after_the_staleness_window(client, auth_headers
     stale = client.get("/twin").json()
     assert stale["mode"] == "live"  # mode is sticky...
     assert stale["connected"] is False  # ...but connectivity honestly reflects staleness
+
+
+def test_full_real_data_flow_registration_to_websocket_broadcast(client):
+    """SPEC §P: register -> authenticated ingest -> stored snapshot -> twin reflects
+    the real listener -> exposure/SPOF computable -> event/WS broadcast reach the client."""
+    with client.websocket_connect("/ws") as ws:
+        initial = ws.receive_json()
+        assert initial["twin"]["mode"] == "unconnected"
+
+        reg = client.post("/agents/register").json()
+        assert reg["agent_id"] and reg["token"]
+
+        resp = client.post(
+            "/ingest", json=LIVE_SNAPSHOT, headers={"Authorization": f"Bearer {reg['token']}"}
+        )
+        assert resp.status_code == 200
+
+        ingest_msg = ws.receive_json()
+        assert ingest_msg["type"] == "INGEST"
+
+    twin = client.get("/twin").json()
+    assert twin["mode"] == "live"
+    assert twin["agent_id"] == reg["agent_id"]
+    assert any(n["id"] == "myrealapp" for n in twin["nodes"])
+
+    scan = client.post("/scan").json()
+    assert scan["status"] == "complete"
+    assert isinstance(scan["findings"], list)
+    assert isinstance(scan["spof"], list)
+
+    events = client.get("/events").json()
+    assert any(e["type"] == "SCAN_COMPLETE" for e in events)

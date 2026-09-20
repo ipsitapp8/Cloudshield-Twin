@@ -118,6 +118,18 @@ class Store:
         )
         self._conn.commit()
 
+    def list_agents(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT agent_id, hostname, created_ts, last_seen_ts FROM agents ORDER BY created_ts DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_agent(self, agent_id: str) -> dict | None:
+        row = self._conn.execute(
+            "SELECT agent_id, hostname, created_ts, last_seen_ts FROM agents WHERE agent_id = ?", (agent_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
     @staticmethod
     def _row_to_snapshot(row: sqlite3.Row) -> dict:
         return {"id": row["id"], "ts": row["ts"], "kind": row["kind"], "payload": json.loads(row["payload"])}
