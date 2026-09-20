@@ -14,6 +14,8 @@ from urllib.parse import unquote
 
 from engine.models import AWSSnapshot, Instance, RolePermission, SecurityGroup
 
+from backend.replay import SCENARIOS
+
 
 class AwsSource(Protocol):
     def get_snapshot(self) -> AWSSnapshot: ...
@@ -28,11 +30,20 @@ class FakeAws:
 
     def __init__(self, fixtures_dir: Path, scenario: str = "healthy"):
         self._dir = Path(fixtures_dir)
-        self.scenario = scenario
+        self.scenario = self._validated(scenario)
         self._override: dict | None = None  # in-memory mutation from apply(), scenario-local
 
+    @staticmethod
+    def _validated(scenario: str) -> str:
+        # Defense in depth: scenario is only ever set internally from ReplayState's own
+        # SCENARIOS list today, but this closes off any fixture-path escape (e.g. "../../etc")
+        # should a future caller ever pass an unchecked value through.
+        if scenario not in SCENARIOS:
+            raise ValueError(f"unknown scenario {scenario!r}")
+        return scenario
+
     def set_scenario(self, scenario: str) -> None:
-        self.scenario = scenario
+        self.scenario = self._validated(scenario)
         self._override = None
 
     def get_snapshot(self) -> AWSSnapshot:

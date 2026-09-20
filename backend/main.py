@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from engine import attack as attack_engine
 from engine import drift as drift_engine
@@ -45,7 +45,9 @@ def probe_tcp(host: str, port: int, timeout: float = PROBE_TIMEOUT_SECONDS) -> d
         status, reason = "unreachable", "timeout"
     except ConnectionRefusedError:
         status, reason = "unreachable", "connection_refused"
-    except OSError as exc:
+    except (OSError, OverflowError) as exc:
+        # OverflowError: some platforms raise this (not an OSError subclass) for a port
+        # outside 0-65535 -- must still resolve to a safe "unknown", never an unhandled 500.
         status, reason = "unknown", str(exc)
     elapsed_ms = int((time.monotonic() - start) * 1000)
     return {"host": host, "port": port, "status": status, "reason": reason, "elapsed_ms": elapsed_ms}
@@ -263,7 +265,10 @@ def create_app(**backend_kwargs) -> FastAPI:
 
     @app.post("/ingest")
     async def ingest(body: dict, _auth: None = Depends(check_bearer)):
-        snapshot = AgentSnapshot.model_validate(body)
+        try:
+            snapshot = AgentSnapshot.model_validate(body)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.errors(include_url=False))
         backend.ingest(snapshot)
         await broadcast({"type": "INGEST", "ts": snapshot.ts})
         return {"status": "ok"}
@@ -353,7 +358,14 @@ def create_app(**backend_kwargs) -> FastAPI:
         try:
             await websocket.send_json({"type": "TWIN", "twin": backend.get_twin_json()})
             while True:
-                await websocket.receive_text()
+                # Client messages are never parsed/acted on -- this loop only waits for a
+                # disconnect. A non-text frame must not crash the connection: receive_text()
+                # raises KeyError/RuntimeError (Starlette-version-dependent) for one, not
+                # WebSocketDisconnect, so it's caught and ignored here rather than propagating.
+                try:
+                    await websocket.receive_text()
+                except (KeyError, RuntimeError):
+                    continue
         except WebSocketDisconnect:
             pass
         finally:
