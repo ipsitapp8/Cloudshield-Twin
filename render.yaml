@@ -1,0 +1,21 @@
+services:
+  - name: cloudshield-backend
+    type: web
+    runtime: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FRONTEND_ORIGIN
+        value: https://cloudshield-frontend.onrender.com
+      - key: INGEST_TOKEN
+        generateValue: true
+
+  - name: cloudshield-frontend
+    type: web
+    runtime: static
+    buildCommand: cd web && npm install && npm run build
+    staticPublishPath: web/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://cloudshield-backend.onrender.com
