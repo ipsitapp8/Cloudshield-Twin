@@ -170,6 +170,7 @@ def test_probe_out_of_range_port_via_api_never_500s(client, monkeypatch):
         raise OverflowError("getsockaddrarg: port must be 0-65535.")
 
     monkeypatch.setattr(socket, "create_connection", raise_overflow)
+    client.post("/replay/reset")
     resp = client.get("/probe", params={"port": 999999999})
     assert resp.status_code == 200
     assert resp.json()["status"] == "unknown"
@@ -186,6 +187,7 @@ def test_probe_out_of_range_port_via_api_never_500s(client, monkeypatch):
     ],
 )
 def test_malicious_finding_ids_are_rejected_not_500(client, malicious_id):
+    client.post("/replay/reset")
     resp = client.get(f"/fix/{malicious_id}")
     assert resp.status_code in (404, 422)
 
@@ -199,11 +201,13 @@ def test_malicious_finding_ids_are_rejected_not_500(client, malicious_id):
     ],
 )
 def test_malicious_patch_ids_are_rejected_not_500(client, malicious_id):
+    client.post("/replay/reset")
     resp = client.post(f"/fix/{malicious_id}/apply", json={"approve": True})
     assert resp.status_code in (404, 422)
 
 
 def test_malicious_node_names_are_rejected_not_500(client):
+    client.post("/replay/reset")
     for node in ["'; DROP TABLE snapshots; --", "../../etc/passwd", "\x00\x01", "x" * 5000]:
         resp = client.post("/simulate/failure", json={"node": node})
         assert resp.status_code == 404
@@ -297,6 +301,8 @@ def test_replay_endpoints_accept_no_scenario_input_at_all(client):
 
 def test_500_error_body_never_leaks_a_stack_trace_or_file_path(backend_app, monkeypatch, backend):
     from fastapi.testclient import TestClient
+
+    backend.replay_reset()  # mode must not be "unconnected", or /twin never calls build_twin at all
 
     def boom():
         raise RuntimeError("simulated internal failure")

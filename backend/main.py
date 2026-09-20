@@ -5,6 +5,7 @@ Works fully offline in AWS_MODE=fake (default): no AWS credentials, no real VM r
 from __future__ import annotations
 
 import os
+import secrets
 import socket
 import time
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Literal
 import yaml
 from fastapi import Depends, FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 
 from engine import attack as attack_engine
@@ -43,6 +45,11 @@ LIVE_STALE_SECONDS = 30.0
 class LiveModeConflict(Exception):
     """Raised when a demo/replay action is attempted while a real agent is connected
     (§21: demo data must never silently overwrite/mix with live telemetry)."""
+
+
+class NoTwinConnected(Exception):
+    """Raised when no agent has ever connected and demo/replay mode hasn't been
+    explicitly activated -- there is no twin to build yet."""
 
 
 def probe_tcp(host: str, port: int, timeout: float = PROBE_TIMEOUT_SECONDS) -> dict:
@@ -92,21 +99,36 @@ class Backend:
         )
         self._latest_agent: AgentSnapshot | None = None
         self._drift_prev_fp: dict | None = None
-        self._mode: Literal["demo", "live"] = "demo"
+        # No agent has ever connected and no one has explicitly asked for demo data
+        # yet -- the default MUST be "unconnected", never a silent fixture fallback.
+        self._mode: Literal["unconnected", "demo", "live"] = "unconnected"
         self._last_ingest_ts: float | None = None
+        self._connected_agent_id: str | None = None
+
+    # -- agent registration ---------------------------------------------
+
+    def register_agent(self) -> dict:
+        agent_id = f"agent-{secrets.token_hex(4)}"
+        token = secrets.token_urlsafe(24)
+        self.store.create_agent(agent_id, token)
+        return {"agent_id": agent_id, "token": token}
 
     # -- ingestion ----------------------------------------------------
 
-    def ingest(self, snapshot: AgentSnapshot) -> None:
+    def ingest(self, snapshot: AgentSnapshot, agent_id: str = "default") -> None:
         self._latest_agent = snapshot
         self._mode = "live"  # sticky for the process lifetime once a real agent connects
         self._last_ingest_ts = time.time()
+        self._connected_agent_id = agent_id
+        self.store.touch_agent(agent_id, snapshot.host.hostname, ts=snapshot.ts)
         self.store.add_snapshot("agent", snapshot.model_dump(mode="json"), ts=snapshot.ts)
         self._recompute_drift()
 
     # -- twin -----------------------------------------------------------
 
     def build_twin(self):
+        if self._mode == "unconnected":
+            raise NoTwinConnected("no VM connected -- connect an agent or enable demo/replay mode")
         if self._latest_agent is not None:
             agent = self._latest_agent
         else:
@@ -123,17 +145,49 @@ class Backend:
         self._drift_prev_fp = fp
 
     def get_twin_json(self) -> dict:
+        last_seen_ago = time.time() - self._last_ingest_ts if self._last_ingest_ts is not None else None
+        connected = self._mode == "live" and last_seen_ago is not None and last_seen_ago <= LIVE_STALE_SECONDS
+        if self._mode == "unconnected":
+            return {
+                "nodes": [],
+                "edges": [],
+                "mode": self._mode,
+                "connected": False,
+                "last_seen_seconds_ago": None,
+                "agent_id": None,
+                "hostname": None,
+            }
         G = self.build_twin()
         nodes = [{"id": n, **d} for n, d in G.nodes(data=True)]
         edges = [{"src": u, "dst": v, **d} for u, v, d in G.edges(data=True)]
-        last_seen_ago = time.time() - self._last_ingest_ts if self._last_ingest_ts is not None else None
-        connected = self._mode == "live" and last_seen_ago is not None and last_seen_ago <= LIVE_STALE_SECONDS
+        hostname = self._latest_agent.host.hostname if self._latest_agent is not None else None
         return {
             "nodes": nodes,
             "edges": edges,
             "mode": self._mode,
             "connected": connected,
             "last_seen_seconds_ago": last_seen_ago,
+            "agent_id": self._connected_agent_id,
+            "hostname": hostname,
+        }
+
+    def connection_status(self) -> dict:
+        twin = self.get_twin_json()
+        return {
+            "mode": twin["mode"],
+            "connected": twin["connected"],
+            "agent_id": twin["agent_id"],
+            "hostname": twin["hostname"],
+            "last_seen_seconds_ago": twin["last_seen_seconds_ago"],
+        }
+
+    def processes(self) -> dict:
+        if self._latest_agent is None:
+            return {"available": False}
+        return {
+            "available": True,
+            "processes": [p.model_dump() for p in self._latest_agent.processes],
+            "listeners": [ln.model_dump() for ln in self._latest_agent.listeners],
         }
 
     # -- findings ---------------------------------------------------------
@@ -250,6 +304,7 @@ class Backend:
     def replay_step(self) -> dict:
         if self._mode == "live":
             raise LiveModeConflict("a real agent is connected; demo replay is disabled for this session")
+        self._mode = "demo"  # explicit opt-in -- never entered implicitly
         scenario = self.replay.step()
         agent, _aws = self.replay.load()
         self._latest_agent = agent
@@ -262,6 +317,7 @@ class Backend:
     def replay_reset(self) -> dict:
         if self._mode == "live":
             raise LiveModeConflict("a real agent is connected; demo replay is disabled for this session")
+        self._mode = "demo"  # explicit opt-in -- never entered implicitly
         scenario = self.replay.reset()
         self._latest_agent = None
         self._drift_prev_fp = None
@@ -310,6 +366,10 @@ def create_app(**backend_kwargs) -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.exception_handler(NoTwinConnected)
+    async def no_twin_connected_handler(request, exc: NoTwinConnected):
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
     async def broadcast(message: dict) -> None:
         stale = []
         for ws in app.state.ws_clients:
@@ -320,19 +380,36 @@ def create_app(**backend_kwargs) -> FastAPI:
         for ws in stale:
             app.state.ws_clients.discard(ws)
 
-    def check_bearer(authorization: str | None = Header(default=None)) -> None:
+    def check_bearer(authorization: str | None = Header(default=None)) -> str:
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="missing bearer token")
-        if authorization.removeprefix("Bearer ") != backend.ingest_token:
+        token = authorization.removeprefix("Bearer ")
+        if token == backend.ingest_token:
+            return "default"
+        agent_id = backend.store.get_agent_id_by_token(token)
+        if agent_id is None:
             raise HTTPException(status_code=401, detail="invalid token")
+        return agent_id
+
+    @app.post("/agents/register")
+    def register_agent():
+        return backend.register_agent()
+
+    @app.get("/connection")
+    def connection():
+        return backend.connection_status()
+
+    @app.get("/processes")
+    def processes():
+        return backend.processes()
 
     @app.post("/ingest")
-    async def ingest(body: dict, _auth: None = Depends(check_bearer)):
+    async def ingest(body: dict, agent_id: str = Depends(check_bearer)):
         try:
             snapshot = AgentSnapshot.model_validate(body)
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.errors(include_url=False))
-        backend.ingest(snapshot)
+        backend.ingest(snapshot, agent_id)
         await broadcast({"type": "INGEST", "ts": snapshot.ts})
         return {"status": "ok"}
 

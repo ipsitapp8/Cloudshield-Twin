@@ -4,10 +4,33 @@ import json
 def test_fake_mode_works_without_aws_credentials(client, monkeypatch):
     for var in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"):
         monkeypatch.delenv(var, raising=False)
+    client.post("/replay/reset")  # explicit demo activation -- fixtures are never a passive default
     resp = client.get("/twin")
     assert resp.status_code == 200
     body = resp.json()
     assert any(n["id"] == "redis" for n in body["nodes"])
+
+
+def test_fresh_backend_has_no_twin_until_connected_or_demo_activated(client):
+    resp = client.get("/twin")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body == {
+        "nodes": [],
+        "edges": [],
+        "mode": "unconnected",
+        "connected": False,
+        "last_seen_seconds_ago": None,
+        "agent_id": None,
+        "hostname": None,
+    }
+
+
+def test_build_twin_backed_endpoints_409_while_unconnected(client):
+    resp = client.post("/simulate/failure", json={"node": "redis"})
+    assert resp.status_code == 409
+    resp = client.get("/spof")
+    assert resp.status_code == 409
 
 
 def test_ingest_requires_bearer_token(client):
@@ -39,6 +62,7 @@ def test_replay_progression_via_api(client):
 
 
 def test_failure_simulation_endpoint(client):
+    client.post("/replay/reset")
     resp = client.post("/simulate/failure", json={"node": "redis"})
     assert resp.status_code == 200
     result = resp.json()
@@ -47,6 +71,7 @@ def test_failure_simulation_endpoint(client):
 
 
 def test_failure_simulation_unknown_node_404(client):
+    client.post("/replay/reset")
     resp = client.post("/simulate/failure", json={"node": "does-not-exist"})
     assert resp.status_code == 404
 
@@ -60,6 +85,7 @@ def test_attack_simulation_endpoint_after_replay_to_exposed(client):
 
 
 def test_spof_endpoint(client):
+    client.post("/replay/reset")
     resp = client.get("/spof")
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)
@@ -107,6 +133,7 @@ def test_probe_endpoint_uses_current_public_ip(client, monkeypatch):
     import socket
 
     monkeypatch.setattr(socket, "create_connection", lambda addr, timeout: (_ for _ in ()).throw(ConnectionRefusedError()))
+    client.post("/replay/reset")
     resp = client.get("/probe", params={"port": 6379})
     assert resp.status_code == 200
     body = resp.json()
@@ -132,7 +159,8 @@ def test_websocket_receives_initial_twin_and_replay_broadcast(client):
     with client.websocket_connect("/ws") as ws:
         first = ws.receive_json()
         assert first["type"] == "TWIN"
-        assert any(n["id"] == "redis" for n in first["twin"]["nodes"])
+        assert first["twin"]["mode"] == "unconnected"
+        assert first["twin"]["nodes"] == []
 
         client.post("/replay/step")
         second = ws.receive_json()

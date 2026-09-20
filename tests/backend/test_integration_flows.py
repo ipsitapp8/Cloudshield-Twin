@@ -33,6 +33,7 @@ def make_client(tmp_path, **backend_kwargs):
 
 def test_1_healthy_twin_renders_and_redis_is_not_falsely_exposed(tmp_path):
     client, _ = make_client(tmp_path)
+    client.post("/replay/reset")  # explicit demo activation -- fixtures are never a passive default
 
     twin = client.get("/twin").json()
     node_ids = {n["id"] for n in twin["nodes"]}
@@ -292,6 +293,7 @@ def test_8_explain_only_ever_receives_structured_json(tmp_path):
 
 def test_9_probe_reachable(tmp_path, monkeypatch):
     client, _ = make_client(tmp_path)
+    client.post("/replay/reset")
 
     class FakeSocket:
         def __enter__(self):
@@ -308,6 +310,7 @@ def test_9_probe_reachable(tmp_path, monkeypatch):
 
 def test_9_probe_unreachable_and_ambiguous_never_claim_fixed(tmp_path, monkeypatch):
     client, _ = make_client(tmp_path)
+    client.post("/replay/reset")
 
     monkeypatch.setattr(
         socket, "create_connection", lambda addr, timeout: (_ for _ in ()).throw(socket.timeout())

@@ -19,12 +19,12 @@ HIGH_CPU_SNAPSHOT = {
 }
 
 
-def test_performance_unavailable_in_demo_mode(client):
+def test_performance_unavailable_before_any_connection(client):
     resp = client.get("/performance")
     assert resp.status_code == 200
     body = resp.json()
     assert body["available"] is False
-    assert body["source"] == "demo"
+    assert body["source"] == "unconnected"
 
 
 def test_performance_reports_real_cpu_bottleneck_after_live_ingest(client, auth_headers):

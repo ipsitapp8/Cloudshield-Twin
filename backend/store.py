@@ -32,6 +32,15 @@ class Store:
                 payload TEXT NOT NULL
             )"""
         )
+        self._conn.execute(
+            """CREATE TABLE IF NOT EXISTS agents (
+                agent_id TEXT PRIMARY KEY,
+                token TEXT NOT NULL UNIQUE,
+                hostname TEXT,
+                created_ts REAL NOT NULL,
+                last_seen_ts REAL
+            )"""
+        )
         self._conn.commit()
 
     def add_snapshot(self, kind: str, payload: dict, ts: float | None = None) -> int:
@@ -88,6 +97,26 @@ class Store:
             {"id": r["id"], "ts": r["ts"], "type": r["type"], "payload": json.loads(r["payload"])}
             for r in rows
         ]
+
+    def create_agent(self, agent_id: str, token: str, ts: float | None = None) -> None:
+        ts = ts if ts is not None else time.time()
+        self._conn.execute(
+            "INSERT INTO agents (agent_id, token, hostname, created_ts, last_seen_ts) VALUES (?, ?, NULL, ?, NULL)",
+            (agent_id, token, ts),
+        )
+        self._conn.commit()
+
+    def get_agent_id_by_token(self, token: str) -> str | None:
+        row = self._conn.execute("SELECT agent_id FROM agents WHERE token = ?", (token,)).fetchone()
+        return row["agent_id"] if row else None
+
+    def touch_agent(self, agent_id: str, hostname: str | None, ts: float | None = None) -> None:
+        ts = ts if ts is not None else time.time()
+        self._conn.execute(
+            "UPDATE agents SET hostname = ?, last_seen_ts = ? WHERE agent_id = ?",
+            (hostname, ts, agent_id),
+        )
+        self._conn.commit()
 
     @staticmethod
     def _row_to_snapshot(row: sqlite3.Row) -> dict:

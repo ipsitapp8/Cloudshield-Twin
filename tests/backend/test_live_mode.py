@@ -24,7 +24,7 @@ LIVE_SNAPSHOT = {
 
 def test_live_ingest_flips_mode_and_reports_connected(client, auth_headers):
     before = client.get("/twin").json()
-    assert before["mode"] == "demo"
+    assert before["mode"] == "unconnected"
     assert before["connected"] is False
 
     resp = client.post("/ingest", json=LIVE_SNAPSHOT, headers=auth_headers)
@@ -38,8 +38,8 @@ def test_live_ingest_flips_mode_and_reports_connected(client, auth_headers):
 
 
 def test_live_ingest_shows_real_listener_and_hides_fixture_nginx(client, auth_headers):
-    demo_twin = client.get("/twin").json()
-    assert any(n["id"] == "nginx" for n in demo_twin["nodes"])  # fixture-driven baseline has nginx
+    unconnected_twin = client.get("/twin").json()
+    assert unconnected_twin["nodes"] == []  # no fixture data before any agent/demo action
 
     client.post("/ingest", json=LIVE_SNAPSHOT, headers=auth_headers)
 
