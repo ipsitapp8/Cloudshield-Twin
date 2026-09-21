@@ -10,6 +10,8 @@ services:
         value: https://cloudshield-frontend.onrender.com
       - key: INGEST_TOKEN
         generateValue: true
+      - key: DB_PATH
+        value: cloudshield.db
 
   - name: cloudshield-frontend
     type: web

@@ -78,7 +78,7 @@ class Backend:
     def __init__(
         self,
         fixtures_dir: Path = FIXTURES_DIR,
-        db_path: str = ":memory:",
+        db_path: str | None = None,
         audit_path: Path | None = None,
         ingest_token: str | None = None,
         configured_sg_id: str = DEFAULT_SG_ID,
@@ -88,7 +88,11 @@ class Backend:
         self.twin_config = TwinConfig.model_validate(
             yaml.safe_load((self.fixtures_dir / "twin.yaml").read_text())
         )
-        self.store = Store(db_path)
+        # Defaults to :memory: (tests/local dev) unless DB_PATH is set -- e.g. in
+        # production, so registered agents/mode survive a process restart instead of
+        # being wiped every time (a free-tier host that spins the process down and
+        # back up looks exactly like a restart to this store).
+        self.store = Store(db_path or os.environ.get("DB_PATH", ":memory:"))
         self.aws_source = get_aws_source(self.fixtures_dir, scenario="healthy")
         self.replay = ReplayState(self.fixtures_dir)
         self.ingest_token = ingest_token or os.environ.get("INGEST_TOKEN", "dev-token")
