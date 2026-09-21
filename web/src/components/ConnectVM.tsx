@@ -4,6 +4,34 @@ import type { RegisterAgentResult } from '../api/types'
 import { ShieldIcon } from './icons'
 
 const POLL_INTERVAL_MS = 2000
+const COPIED_RESET_MS = 1500
+
+function CopyableCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false)
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(command)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), COPIED_RESET_MS)
+    } catch {
+      // clipboard access denied/unavailable -- the command is still visible and selectable
+    }
+  }
+
+  return (
+    <pre className="relative mt-1 overflow-x-auto rounded bg-slate-950 p-2 pr-14 text-xs text-emerald-300">
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="absolute right-1.5 top-1.5 rounded border border-slate-700 bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-300 transition-colors hover:bg-slate-800"
+      >
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+      <code>{command}</code>
+    </pre>
+  )
+}
 
 /** The real "no VM connected" gate (STOP-spec §M): the dashboard must not render
  * until a real agent has ingested telemetry, or the user explicitly opts into
@@ -146,21 +174,15 @@ export function ConnectVM({ onConnected }: { onConnected: () => void }) {
             <li>SSH into the Linux VM you want to monitor (needs Python 3.11+ and outbound internet access).</li>
             <li>
               Get the code onto it:
-              <pre className="mt-1 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-emerald-300">
-                <code>git clone https://github.com/ipsitapp8/Cloudshield-Twin.git &amp;&amp; cd Cloudshield-Twin</code>
-              </pre>
+              <CopyableCommand command="git clone https://github.com/ipsitapp8/Cloudshield-Twin.git && cd Cloudshield-Twin" />
             </li>
             <li>
               Install dependencies:
-              <pre className="mt-1 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-emerald-300">
-                <code>python3 -m venv venv &amp;&amp; source venv/bin/activate &amp;&amp; pip install -e .</code>
-              </pre>
+              <CopyableCommand command="python3 -m venv venv && source venv/bin/activate && pip install -e ." />
             </li>
             <li>
               Run the agent (your unique token is already in this command):
-              <pre className="mt-1 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-emerald-300">
-                <code>{command}</code>
-              </pre>
+              {command && <CopyableCommand command={command} />}
             </li>
           </ol>
           <p className="mt-4 flex items-center gap-2 text-sm text-slate-400" role="status">
