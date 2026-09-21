@@ -141,13 +141,31 @@ export function ConnectVM({ onConnected }: { onConnected: () => void }) {
 
       {reg && (
         <div className="mt-6 w-full max-w-lg rounded-lg border border-slate-800 bg-slate-900/60 p-4 text-left">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Run this on your Linux VM</p>
-          <pre className="mt-2 overflow-x-auto rounded bg-slate-950 p-3 text-xs text-emerald-300">
-            <code>{command}</code>
-          </pre>
-          <p className="mt-3 flex items-center gap-2 text-sm text-slate-400" role="status">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Set up the agent on your Linux VM</p>
+          <ol className="mt-3 list-inside list-decimal space-y-3 text-sm text-slate-300">
+            <li>SSH into the Linux VM you want to monitor (needs Python 3.11+ and outbound internet access).</li>
+            <li>
+              Get the code onto it:
+              <pre className="mt-1 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-emerald-300">
+                <code>git clone https://github.com/ipsitapp8/Cloudshield-Twin.git &amp;&amp; cd Cloudshield-Twin</code>
+              </pre>
+            </li>
+            <li>
+              Install dependencies:
+              <pre className="mt-1 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-emerald-300">
+                <code>python3 -m venv venv &amp;&amp; source venv/bin/activate &amp;&amp; pip install -e .</code>
+              </pre>
+            </li>
+            <li>
+              Run the agent (your unique token is already in this command):
+              <pre className="mt-1 overflow-x-auto rounded bg-slate-950 p-2 text-xs text-emerald-300">
+                <code>{command}</code>
+              </pre>
+            </li>
+          </ol>
+          <p className="mt-4 flex items-center gap-2 text-sm text-slate-400" role="status">
             <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-700 border-t-purple-500" />
-            Waiting for agent…
+            Waiting for agent… this page updates automatically once it connects.
           </p>
           <p className="mt-1 text-xs text-slate-600">Agent ID: {reg.agent_id}</p>
         </div>

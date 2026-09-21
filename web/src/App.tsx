@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { api } from './api/client'
 import { useAsyncAction } from './hooks/useAsync'
 import { LiveProvider } from './hooks/LiveContext'
+import { useAgentMode } from './hooks/useAgentMode'
 import { ConnectionBadge } from './components/ConnectionBadge'
 import { ConnectVM } from './components/ConnectVM'
 import { ReplayControls } from './components/ReplayControls'
@@ -146,6 +147,26 @@ function ScanNowButton() {
   )
 }
 
+/** The incident walkthrough narrates fixture data via replayReset()/replayStep(), which
+ * the backend rejects (409) once a real agent is connected (README: LIVE mode never
+ * mixes with replay). Disable the trigger instead of letting users hit that as a
+ * confusing "something went wrong" error. */
+function IncidentButton({ onOpen }: { onOpen: () => void }) {
+  const isLive = useAgentMode() === 'live'
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={isLive}
+      title={isLive ? 'Disabled while a real VM is connected — this walkthrough uses demo/replay data' : undefined}
+      className="rounded border border-purple-700 px-2.5 py-1 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-900/30 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+    >
+      ▶ Incident
+    </button>
+  )
+}
+
 function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory: boolean }) {
   const [tab, setTab] = useState('dashboard')
   const [storyOpen, setStoryOpen] = useState(autoStartStory)
@@ -169,13 +190,7 @@ function Shell({ onHome, autoStartStory }: { onHome: () => void; autoStartStory:
             <RiskBar />
             <ScanNowButton />
             <ReplayControls />
-            <button
-              type="button"
-              onClick={() => setStoryOpen(true)}
-              className="rounded border border-purple-700 px-2.5 py-1 text-xs font-medium text-purple-300 transition-colors hover:bg-purple-900/30"
-            >
-              ▶ Incident
-            </button>
+            <IncidentButton onOpen={() => setStoryOpen(true)} />
             <span className="h-5 w-px bg-slate-700" aria-hidden="true" />
             <AgentStatusBadge />
             <ConnectionBadge />

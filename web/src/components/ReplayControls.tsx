@@ -1,23 +1,28 @@
 import { useState } from 'react'
 import { api } from '../api/client'
 import { useAsyncAction } from '../hooks/useAsync'
+import { useAgentMode } from '../hooks/useAgentMode'
 import type { ReplayScenario } from '../api/types'
 
 const ORDER: ReplayScenario[] = ['healthy', 'latent', 'exposed', 'fixed']
 
 /** SPEC §6 POST /replay/step progression: healthy -> latent -> exposed -> fixed.
  * The backend has no "current scenario" getter, so we track it client-side starting
- * from the documented initial state and update it from each step/reset response. */
+ * from the documented initial state and update it from each step/reset response.
+ * Disabled once a real agent is live -- the backend rejects /replay/* with 409 so
+ * demo fixtures can never overwrite real telemetry (README: LIVE mode never mixes
+ * with replay). */
 export function ReplayControls() {
   const [scenario, setScenario] = useState<ReplayScenario>('healthy')
   const step = useAsyncAction(api.replayStep)
   const reset = useAsyncAction(api.replayReset)
+  const isLive = useAgentMode() === 'live'
 
   const busy = step.state.status === 'loading' || reset.state.status === 'loading'
   const atEnd = scenario === 'fixed'
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3" title={isLive ? 'Disabled while a real VM is connected — this replays demo/fixture data' : undefined}>
       <div className="flex items-center gap-1 text-xs text-slate-400" aria-label="replay progression">
         {ORDER.map((s, i) => (
           <span key={s} className="flex items-center gap-1">
@@ -36,7 +41,7 @@ export function ReplayControls() {
       </div>
       <button
         type="button"
-        disabled={busy || atEnd}
+        disabled={busy || atEnd || isLive}
         onClick={() =>
           step.run().then((result) => setScenario(result.scenario)).catch(() => {})
         }
@@ -46,7 +51,7 @@ export function ReplayControls() {
       </button>
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || isLive}
         onClick={() =>
           reset.run().then((result) => setScenario(result.scenario)).catch(() => {})
         }
@@ -54,7 +59,7 @@ export function ReplayControls() {
       >
         Reset ⟲
       </button>
-      {step.state.status === 'error' && (
+      {!isLive && step.state.status === 'error' && (
         <span role="alert" className="text-xs text-red-400">
           {step.state.error.message}
         </span>
