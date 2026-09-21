@@ -20,7 +20,10 @@ function CopyableCommand({ command }: { command: string }) {
   }
 
   return (
-    <pre className="relative mt-1 overflow-x-auto rounded bg-slate-950 p-2 pr-14 text-xs text-emerald-300">
+    <div className="relative mt-1">
+      <pre className="overflow-x-auto rounded bg-slate-950 p-2 pr-14 text-xs text-emerald-300">
+        <code>{command}</code>
+      </pre>
       <button
         type="button"
         onClick={handleCopy}
@@ -28,8 +31,7 @@ function CopyableCommand({ command }: { command: string }) {
       >
         {copied ? 'Copied!' : 'Copy'}
       </button>
-      <code>{command}</code>
-    </pre>
+    </div>
   )
 }
 
